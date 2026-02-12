@@ -1,0 +1,115 @@
+-- +goose Up
+-- Convert all tables from INTEGER to VARCHAR string IDs
+-- This requires dropping and recreating foreign key constraints
+
+-- 1. Drop dependent tables first (they will be recreated)
+DROP TABLE IF EXISTS booking_add_ons CASCADE;
+DROP TABLE IF EXISTS booking_theme_slots CASCADE;
+DROP TABLE IF EXISTS bookings CASCADE;
+DROP TABLE IF EXISTS add_ons CASCADE;
+DROP TABLE IF EXISTS themes CASCADE;
+DROP TABLE IF EXISTS packages CASCADE;
+DROP TABLE IF EXISTS users CASCADE;
+
+-- 2. Recreate Users table (now serves as both customer and admin)
+CREATE TABLE users (
+    id VARCHAR(255) PRIMARY KEY,
+    email VARCHAR(255) UNIQUE NOT NULL,
+    password_hash VARCHAR(255),
+    name VARCHAR(255) NOT NULL,
+    phone VARCHAR(50),
+    role VARCHAR(50) NOT NULL DEFAULT 'CUSTOMER',
+    notes TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX idx_users_email ON users(email);
+
+-- 3. Recreate Packages table
+CREATE TABLE packages (
+    id VARCHAR(255) PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    description TEXT,
+    price DECIMAL(10, 2) NOT NULL,
+    discount DECIMAL(5, 2) DEFAULT 0,
+    offers JSONB,
+    image_url TEXT,
+    is_active BOOLEAN DEFAULT true,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- 4. Recreate Themes table
+CREATE TABLE themes (
+    id VARCHAR(255) PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    description TEXT NOT NULL DEFAULT '',
+    image_url TEXT NOT NULL DEFAULT '',
+    price DECIMAL(10, 2) NOT NULL DEFAULT 0,
+    is_active BOOLEAN DEFAULT true,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- 5. Recreate Addons table
+CREATE TABLE addons (
+    id VARCHAR(255) PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    description TEXT,
+    price DECIMAL(10, 2) NOT NULL,
+    unit VARCHAR(50),
+    is_active BOOLEAN DEFAULT true,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- 6. Recreate Bookings table
+CREATE TABLE bookings (
+    id VARCHAR(255) PRIMARY KEY,
+    package_id VARCHAR(255) NOT NULL REFERENCES packages(id) ON DELETE RESTRICT,
+    customer_name VARCHAR(255) NOT NULL,
+    customer_email VARCHAR(255) NOT NULL,
+    customer_phone VARCHAR(50) NOT NULL,
+    customer_notes TEXT,
+    payment_screenshot_url TEXT,
+    status VARCHAR(50) NOT NULL DEFAULT 'PENDING',
+    total_price DECIMAL(10, 2) NOT NULL,
+    admin_notes TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CONSTRAINT valid_booking_status CHECK (status IN ('PENDING', 'APPROVED', 'REJECTED'))
+);
+CREATE INDEX idx_bookings_status ON bookings(status);
+CREATE INDEX idx_bookings_created_at ON bookings(created_at DESC);
+CREATE INDEX idx_bookings_email ON bookings(customer_email);
+
+-- 7. Recreate Booking Slots table
+CREATE TABLE booking_slots (
+    id SERIAL PRIMARY KEY,
+    booking_id VARCHAR(255) NOT NULL REFERENCES bookings(id) ON DELETE CASCADE,
+    date DATE NOT NULL,
+    time TIME NOT NULL,
+    theme_id VARCHAR(255) NOT NULL REFERENCES themes(id) ON DELETE RESTRICT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX idx_booking_slots_booking_id ON booking_slots(booking_id);
+CREATE INDEX idx_booking_slots_availability ON booking_slots(date, time, theme_id);
+
+-- 8. Recreate Booking Addons table
+CREATE TABLE booking_addons (
+    id SERIAL PRIMARY KEY,
+    booking_id VARCHAR(255) NOT NULL REFERENCES bookings(id) ON DELETE CASCADE,
+    addon_id VARCHAR(255) NOT NULL REFERENCES addons(id) ON DELETE RESTRICT,
+    quantity INT NOT NULL CHECK (quantity > 0),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX idx_booking_addons_booking_id ON booking_addons(booking_id);
+
+-- +goose Down
+DROP TABLE IF EXISTS booking_addons CASCADE;
+DROP TABLE IF EXISTS booking_slots CASCADE;
+DROP TABLE IF EXISTS bookings CASCADE;
+DROP TABLE IF EXISTS addons CASCADE;
+DROP TABLE IF EXISTS themes CASCADE;
+DROP TABLE IF EXISTS packages CASCADE;
+DROP TABLE IF EXISTS users CASCADE;

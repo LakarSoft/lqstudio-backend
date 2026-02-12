@@ -1,0 +1,1003 @@
+{
+	"info": {
+		"_postman_id": "lqstudio-photography-api",
+		"name": "LQ Studio Photography Booking API",
+		"description": "Complete API collection for LQ Studio Photography Studio booking system. Includes public endpoints for customers and protected admin endpoints for management.\n\n## Setup Instructions\n1. Update the `baseUrl` variable with your server address (default: http://localhost:8080)\n2. For admin endpoints, first login via `/api/admin/login` to get JWT token\n3. The token will be automatically used in protected endpoints via the `bearerToken` variable\n\n## Base URL\nDefault: http://localhost:8080",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"variable": [
+		{
+			"key": "baseUrl",
+			"value": "http://localhost:8080",
+			"type": "string"
+		},
+		{
+			"key": "bearerToken",
+			"value": "",
+			"type": "string"
+		}
+	],
+	"item": [
+		{
+			"name": "Health Check",
+			"item": [
+				{
+					"name": "Health Check",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/health",
+							"host": ["{{baseUrl}}"],
+							"path": ["health"]
+						},
+						"description": "Check if the API server and database are healthy"
+					},
+					"response": []
+				}
+			],
+			"description": "Health check endpoint to verify API availability"
+		},
+		{
+			"name": "Authentication",
+			"item": [
+				{
+					"name": "Admin Login",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"// Auto-save token to environment variable",
+									"if (pm.response.code === 200) {",
+									"    var jsonData = pm.response.json();",
+									"    if (jsonData.data && jsonData.data.token) {",
+									"        pm.collectionVariables.set(\"bearerToken\", jsonData.data.token);",
+									"        console.log(\"Token saved:\", jsonData.data.token);",
+									"    }",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"admin@lqstudio.com\",\n  \"password\": \"admin123\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/admin/login",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "admin", "login"]
+						},
+						"description": "Admin login to get JWT token. Token is automatically saved to `bearerToken` variable for use in protected endpoints."
+					},
+					"response": []
+				}
+			],
+			"description": "Authentication endpoints for admin users"
+		},
+		{
+			"name": "Public - Packages",
+			"item": [
+				{
+					"name": "Get Active Packages",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/packages",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "packages"]
+						},
+						"description": "Get list of all active packages available for booking (customer-facing)"
+					},
+					"response": []
+				}
+			],
+			"description": "Public endpoints for packages (no authentication required)"
+		},
+		{
+			"name": "Public - Themes",
+			"item": [
+				{
+					"name": "Get Active Themes",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/themes",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "themes"]
+						},
+						"description": "Get list of all active themes available for booking (customer-facing)"
+					},
+					"response": []
+				}
+			],
+			"description": "Public endpoints for themes (no authentication required)"
+		},
+		{
+			"name": "Public - Add-ons",
+			"item": [
+				{
+					"name": "Get Active Add-ons",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/addons",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "addons"]
+						},
+						"description": "Get list of all active add-ons available for booking (customer-facing)"
+					},
+					"response": []
+				}
+			],
+			"description": "Public endpoints for add-ons (no authentication required)"
+		},
+		{
+			"name": "Public - Availability",
+			"item": [
+				{
+					"name": "Get Available Time Slots",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/themes/:themeId/available-times?date=2024-12-25&packageId=pkg-early-bird",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "themes", ":themeId", "available-times"],
+							"query": [
+								{
+									"key": "date",
+									"value": "2024-12-25",
+									"description": "Date in YYYY-MM-DD format"
+								},
+								{
+									"key": "packageId",
+									"value": "pkg-early-bird",
+									"description": "Package ID (optional, defaults to pkg-early-bird)"
+								}
+							],
+							"variable": [
+								{
+									"key": "themeId",
+									"value": "theme-minimalist",
+									"description": "Theme ID to check availability for"
+								}
+							]
+						},
+						"description": "Check available time slots for a specific theme on a specific date"
+					},
+					"response": []
+				}
+			],
+			"description": "Check availability for bookings (no authentication required)"
+		},
+		{
+			"name": "Public - Bookings",
+			"item": [
+				{
+					"name": "Create Booking",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"packageId\": \"pkg-early-bird\",\n  \"slots\": [\n    {\n      \"date\": \"2024-12-25\",\n      \"time\": \"10:00\",\n      \"themeId\": \"theme-minimalist\"\n    },\n    {\n      \"date\": \"2024-12-26\",\n      \"time\": \"14:00\",\n      \"themeId\": \"theme-vintage\"\n    }\n  ],\n  \"addons\": [\n    {\n      \"addonId\": \"addon-extra-person\",\n      \"quantity\": 2\n    },\n    {\n      \"addonId\": \"addon-printed-photos\",\n      \"quantity\": 1\n    }\n  ],\n  \"customer\": {\n    \"name\": \"John Doe\",\n    \"email\": \"john.doe@example.com\",\n    \"phone\": \"+60123456789\",\n    \"notes\": \"Please call me 1 day before the session\"\n  }\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/bookings",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "bookings"]
+						},
+						"description": "Create a new booking (customer-facing, no authentication required). Supports 1-3 slots, optional add-ons, and customer information."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Booking by ID",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/bookings/:id",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "bookings", ":id"],
+							"variable": [
+								{
+									"key": "id",
+									"value": "booking-id-here",
+									"description": "Booking ID"
+								}
+							]
+						},
+						"description": "Get booking details by ID (public, for customers to check their booking)"
+					},
+					"response": []
+				},
+				{
+					"name": "Upload Payment Screenshot",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "file",
+									"type": "file",
+									"src": [],
+									"description": "Payment screenshot image file (JPG, PNG, JPEG)"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/bookings/:id/payment-screenshot",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "bookings", ":id", "payment-screenshot"],
+							"variable": [
+								{
+									"key": "id",
+									"value": "booking-id-here",
+									"description": "Booking ID"
+								}
+							]
+						},
+						"description": "Upload payment screenshot for a booking. Accepts image files (jpg, jpeg, png). Max file size: 5MB."
+					},
+					"response": []
+				}
+			],
+			"description": "Public booking endpoints (no authentication required)"
+		},
+		{
+			"name": "Admin - Packages",
+			"item": [
+				{
+					"name": "Get All Packages",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{bearerToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/admin/packages",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "admin", "packages"]
+						},
+						"description": "Get all packages including inactive ones (admin only)"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Package by ID",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{bearerToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/admin/packages/:id",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "admin", "packages", ":id"],
+							"variable": [
+								{
+									"key": "id",
+									"value": "pkg-early-bird",
+									"description": "Package ID"
+								}
+							]
+						},
+						"description": "Get a single package by ID (admin only)"
+					},
+					"response": []
+				},
+				{
+					"name": "Create Package",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{bearerToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"id\": \"pkg-custom\",\n  \"name\": \"Custom Package\",\n  \"description\": \"Fully customizable photography package\",\n  \"durationMinutes\": 120,\n  \"price\": 599.00,\n  \"discount\": 10,\n  \"offers\": [\n    \"2 hours photo session\",\n    \"Professional photographer\",\n    \"100+ edited photos\",\n    \"Online gallery access\"\n  ],\n  \"imageUrl\": \"https://example.com/package-image.jpg\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/admin/packages",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "admin", "packages"]
+						},
+						"description": "Create a new package (admin only)"
+					},
+					"response": []
+				},
+				{
+					"name": "Update Package",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{bearerToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"id\": \"pkg-early-bird\",\n  \"name\": \"Early Bird Special\",\n  \"description\": \"Perfect for morning shoots\",\n  \"durationMinutes\": 90,\n  \"price\": 399.00,\n  \"discount\": 15,\n  \"offers\": [\n    \"1.5 hours photo session\",\n    \"Professional photographer\",\n    \"50+ edited photos\"\n  ],\n  \"imageUrl\": \"https://example.com/package-image.jpg\",\n  \"isActive\": true\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/admin/packages/:id",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "admin", "packages", ":id"],
+							"variable": [
+								{
+									"key": "id",
+									"value": "pkg-early-bird",
+									"description": "Package ID"
+								}
+							]
+						},
+						"description": "Update an existing package (admin only)"
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Package",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{bearerToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/admin/packages/:id",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "admin", "packages", ":id"],
+							"variable": [
+								{
+									"key": "id",
+									"value": "pkg-custom",
+									"description": "Package ID"
+								}
+							]
+						},
+						"description": "Delete a package (admin only)"
+					},
+					"response": []
+				},
+				{
+					"name": "Toggle Package Active Status",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{bearerToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "PATCH",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/admin/packages/:id/toggle-active",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "admin", "packages", ":id", "toggle-active"],
+							"variable": [
+								{
+									"key": "id",
+									"value": "pkg-early-bird",
+									"description": "Package ID"
+								}
+							]
+						},
+						"description": "Toggle package active/inactive status (admin only)"
+					},
+					"response": []
+				}
+			],
+			"description": "Admin endpoints for package management (requires authentication)"
+		},
+		{
+			"name": "Admin - Themes",
+			"item": [
+				{
+					"name": "Get All Themes",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{bearerToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/admin/themes",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "admin", "themes"]
+						},
+						"description": "Get all themes including inactive ones (admin only)"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Theme by ID",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{bearerToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/admin/themes/:id",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "admin", "themes", ":id"],
+							"variable": [
+								{
+									"key": "id",
+									"value": "theme-minimalist",
+									"description": "Theme ID"
+								}
+							]
+						},
+						"description": "Get a single theme by ID (admin only)"
+					},
+					"response": []
+				},
+				{
+					"name": "Create Theme",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{bearerToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"id\": \"theme-modern\",\n  \"name\": \"Modern Studio\",\n  \"description\": \"Contemporary backdrop with clean lines and modern aesthetics\",\n  \"imageUrl\": \"https://example.com/theme-modern.jpg\",\n  \"price\": 0\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/admin/themes",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "admin", "themes"]
+						},
+						"description": "Create a new theme (admin only)"
+					},
+					"response": []
+				},
+				{
+					"name": "Update Theme",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{bearerToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"id\": \"theme-minimalist\",\n  \"name\": \"Minimalist Studio\",\n  \"description\": \"Clean and simple backdrop for elegant portraits\",\n  \"imageUrl\": \"https://example.com/theme-minimalist.jpg\",\n  \"price\": 0,\n  \"isActive\": true\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/admin/themes/:id",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "admin", "themes", ":id"],
+							"variable": [
+								{
+									"key": "id",
+									"value": "theme-minimalist",
+									"description": "Theme ID"
+								}
+							]
+						},
+						"description": "Update an existing theme (admin only)"
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Theme",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{bearerToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/admin/themes/:id",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "admin", "themes", ":id"],
+							"variable": [
+								{
+									"key": "id",
+									"value": "theme-modern",
+									"description": "Theme ID"
+								}
+							]
+						},
+						"description": "Delete a theme (admin only)"
+					},
+					"response": []
+				},
+				{
+					"name": "Toggle Theme Active Status",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{bearerToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "PATCH",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/admin/themes/:id/toggle-active",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "admin", "themes", ":id", "toggle-active"],
+							"variable": [
+								{
+									"key": "id",
+									"value": "theme-minimalist",
+									"description": "Theme ID"
+								}
+							]
+						},
+						"description": "Toggle theme active/inactive status (admin only)"
+					},
+					"response": []
+				}
+			],
+			"description": "Admin endpoints for theme management (requires authentication)"
+		},
+		{
+			"name": "Admin - Add-ons",
+			"item": [
+				{
+					"name": "Get All Add-ons",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{bearerToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/admin/addons",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "admin", "addons"]
+						},
+						"description": "Get all add-ons including inactive ones (admin only)"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Add-on by ID",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{bearerToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/admin/addons/:id",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "admin", "addons", ":id"],
+							"variable": [
+								{
+									"key": "id",
+									"value": "addon-extra-person",
+									"description": "Add-on ID"
+								}
+							]
+						},
+						"description": "Get a single add-on by ID (admin only)"
+					},
+					"response": []
+				},
+				{
+					"name": "Create Add-on",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{bearerToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"id\": \"addon-video-recording\",\n  \"name\": \"Video Recording\",\n  \"description\": \"Professional video recording of the photo session\",\n  \"price\": 299.00,\n  \"unit\": \"session\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/admin/addons",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "admin", "addons"]
+						},
+						"description": "Create a new add-on (admin only)"
+					},
+					"response": []
+				},
+				{
+					"name": "Update Add-on",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{bearerToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"id\": \"addon-extra-person\",\n  \"name\": \"Extra Person\",\n  \"description\": \"Additional person in the photo session\",\n  \"price\": 50.00,\n  \"unit\": \"pax\",\n  \"isActive\": true\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/admin/addons/:id",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "admin", "addons", ":id"],
+							"variable": [
+								{
+									"key": "id",
+									"value": "addon-extra-person",
+									"description": "Add-on ID"
+								}
+							]
+						},
+						"description": "Update an existing add-on (admin only)"
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Add-on",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{bearerToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/admin/addons/:id",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "admin", "addons", ":id"],
+							"variable": [
+								{
+									"key": "id",
+									"value": "addon-video-recording",
+									"description": "Add-on ID"
+								}
+							]
+						},
+						"description": "Delete an add-on (admin only)"
+					},
+					"response": []
+				},
+				{
+					"name": "Toggle Add-on Active Status",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{bearerToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "PATCH",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/admin/addons/:id/toggle-active",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "admin", "addons", ":id", "toggle-active"],
+							"variable": [
+								{
+									"key": "id",
+									"value": "addon-extra-person",
+									"description": "Add-on ID"
+								}
+							]
+						},
+						"description": "Toggle add-on active/inactive status (admin only)"
+					},
+					"response": []
+				}
+			],
+			"description": "Admin endpoints for add-on management (requires authentication)"
+		},
+		{
+			"name": "Admin - Bookings",
+			"item": [
+				{
+					"name": "List All Bookings",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{bearerToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/admin/bookings?status=PENDING&limit=20&offset=0",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "admin", "bookings"],
+							"query": [
+								{
+									"key": "status",
+									"value": "PENDING",
+									"description": "Filter by status (PENDING, APPROVED, REJECTED)",
+									"disabled": true
+								},
+								{
+									"key": "email",
+									"value": "customer@example.com",
+									"description": "Filter by customer email",
+									"disabled": true
+								},
+								{
+									"key": "limit",
+									"value": "20",
+									"description": "Limit results (default: 20)"
+								},
+								{
+									"key": "offset",
+									"value": "0",
+									"description": "Offset for pagination (default: 0)"
+								}
+							]
+						},
+						"description": "Get list of all bookings with optional filters and pagination (admin only)"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Booking by ID",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{bearerToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/admin/bookings/:id",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "admin", "bookings", ":id"],
+							"variable": [
+								{
+									"key": "id",
+									"value": "booking-id-here",
+									"description": "Booking ID"
+								}
+							]
+						},
+						"description": "Get a single booking by ID (admin only)"
+					},
+					"response": []
+				},
+				{
+					"name": "Update Booking Status",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{bearerToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"status\": \"APPROVED\",\n  \"adminNotes\": \"Payment verified. Booking confirmed.\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/admin/bookings/:id/status",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "admin", "bookings", ":id", "status"],
+							"variable": [
+								{
+									"key": "id",
+									"value": "booking-id-here",
+									"description": "Booking ID"
+								}
+							]
+						},
+						"description": "Update booking status (admin only). Status can be: PENDING, APPROVED, or REJECTED"
+					},
+					"response": []
+				}
+			],
+			"description": "Admin endpoints for booking management (requires authentication)"
+		},
+		{
+			"name": "Documentation",
+			"item": [
+				{
+					"name": "Swagger UI",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/swagger/index.html",
+							"host": ["{{baseUrl}}"],
+							"path": ["swagger", "index.html"]
+						},
+						"description": "Access Swagger UI documentation (open in browser)"
+					},
+					"response": []
+				}
+			],
+			"description": "API documentation endpoints"
+		}
+	]
+}

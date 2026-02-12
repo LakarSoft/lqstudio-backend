@@ -1,0 +1,1744 @@
+basePath: /
+definitions:
+  dto.AddonItemResponse:
+    properties:
+      addonId:
+        type: string
+      quantity:
+        type: integer
+    type: object
+  dto.AddonRequest:
+    properties:
+      addonId:
+        type: string
+      quantity:
+        minimum: 1
+        type: integer
+    required:
+    - addonId
+    - quantity
+    type: object
+  dto.AddonResponse:
+    properties:
+      description:
+        type: string
+      id:
+        type: string
+      isActive:
+        type: boolean
+      name:
+        type: string
+      price:
+        description: Price per unit in MYR
+        type: number
+      unit:
+        description: Unit of measurement (e.g., "pax", "pc", "person")
+        type: string
+    type: object
+  dto.ApiError:
+    properties:
+      code:
+        type: string
+      details:
+        additionalProperties: true
+        type: object
+      message:
+        type: string
+    type: object
+  dto.ApiResponse:
+    properties:
+      data: {}
+      error:
+        $ref: '#/definitions/dto.ApiError'
+      message:
+        type: string
+      meta:
+        $ref: '#/definitions/dto.Metadata'
+      success:
+        type: boolean
+    type: object
+  dto.AvailabilityResponse:
+    properties:
+      date:
+        description: YYYY-MM-DD
+        type: string
+      slots:
+        items:
+          $ref: '#/definitions/dto.AvailableSlotInfo'
+        type: array
+    type: object
+  dto.AvailableSlotInfo:
+    properties:
+      available:
+        description: true if slot is available
+        type: boolean
+      themeId:
+        description: Theme ID for this slot (omitted when checking all themes)
+        type: string
+      time:
+        description: HH:mm format
+        type: string
+    type: object
+  dto.BookingRequest:
+    properties:
+      addons:
+        items:
+          $ref: '#/definitions/dto.AddonRequest'
+        type: array
+      customer:
+        $ref: '#/definitions/dto.CustomerInfo'
+      packageId:
+        type: string
+      slots:
+        items:
+          $ref: '#/definitions/dto.SlotRequest'
+        maxItems: 3
+        minItems: 1
+        type: array
+    required:
+    - customer
+    - packageId
+    - slots
+    type: object
+  dto.BookingResponse:
+    properties:
+      addons:
+        items:
+          $ref: '#/definitions/dto.AddonItemResponse'
+        type: array
+      createdAt:
+        description: ISO 8601 datetime
+        type: string
+      customer:
+        $ref: '#/definitions/dto.CustomerInfo'
+      id:
+        type: string
+      packageId:
+        type: string
+      paymentScreenshotUrl:
+        type: string
+      slots:
+        items:
+          $ref: '#/definitions/dto.SlotResponse'
+        type: array
+      status:
+        description: PENDING | APPROVED | REJECTED
+        type: string
+      totalPrice:
+        type: number
+      updatedAt:
+        description: ISO 8601 datetime
+        type: string
+    type: object
+  dto.CreateAddonRequest:
+    properties:
+      description:
+        type: string
+      id:
+        maxLength: 50
+        type: string
+      name:
+        type: string
+      price:
+        minimum: 0
+        type: number
+      unit:
+        type: string
+    required:
+    - id
+    - name
+    - price
+    type: object
+  dto.CreatePackageRequest:
+    properties:
+      description:
+        type: string
+      discount:
+        maximum: 100
+        minimum: 0
+        type: number
+      durationMinutes:
+        minimum: 15
+        type: integer
+      id:
+        maxLength: 50
+        type: string
+      imageUrl:
+        type: string
+      name:
+        type: string
+      offers:
+        items:
+          type: string
+        type: array
+      price:
+        minimum: 0
+        type: number
+    required:
+    - durationMinutes
+    - id
+    - name
+    - price
+    type: object
+  dto.CreateThemeRequest:
+    properties:
+      description:
+        type: string
+      id:
+        maxLength: 50
+        type: string
+      imageUrl:
+        type: string
+      name:
+        type: string
+      price:
+        description: Optional - defaults to 0 if not provided
+        type: number
+    required:
+    - description
+    - id
+    - imageUrl
+    - name
+    type: object
+  dto.CustomerInfo:
+    properties:
+      email:
+        type: string
+      name:
+        type: string
+      notes:
+        type: string
+      phone:
+        type: string
+    required:
+    - email
+    - name
+    - phone
+    type: object
+  dto.Metadata:
+    properties:
+      request_id:
+        type: string
+      timestamp:
+        type: string
+    type: object
+  dto.PackageResponse:
+    properties:
+      basePrice:
+        description: Same as price (for frontend compatibility)
+        type: number
+      description:
+        type: string
+      discount:
+        description: Discount percentage (0-100)
+        type: number
+      durationMinutes:
+        type: integer
+      finalPrice:
+        description: 'Calculated: price * (1 - discount/100)'
+        type: number
+      id:
+        type: string
+      imageUrl:
+        type: string
+      isActive:
+        type: boolean
+      name:
+        type: string
+      offers:
+        description: List of features/benefits
+        items:
+          type: string
+        type: array
+      price:
+        description: Base price in MYR
+        type: number
+    type: object
+  dto.SlotRequest:
+    properties:
+      date:
+        description: ISO date string (YYYY-MM-DD)
+        type: string
+      themeId:
+        type: string
+      time:
+        description: Time in HH:mm format (e.g., "10:00")
+        type: string
+    required:
+    - date
+    - themeId
+    - time
+    type: object
+  dto.SlotResponse:
+    properties:
+      date:
+        description: ISO date string (YYYY-MM-DD)
+        type: string
+      themeId:
+        description: Foreign key to Theme
+        type: string
+      time:
+        description: Time in HH:mm format
+        type: string
+    type: object
+  dto.ThemeResponse:
+    properties:
+      description:
+        type: string
+      id:
+        type: string
+      imageUrl:
+        type: string
+      isActive:
+        type: boolean
+      name:
+        type: string
+      price:
+        description: Additional cost in MYR (currently 0 for all themes)
+        type: number
+    type: object
+  dto.UpdateAddonRequest:
+    properties:
+      description:
+        type: string
+      id:
+        maxLength: 50
+        type: string
+      isActive:
+        type: boolean
+      name:
+        type: string
+      price:
+        minimum: 0
+        type: number
+      unit:
+        type: string
+    required:
+    - id
+    - name
+    - price
+    type: object
+  dto.UpdateBookingStatusRequest:
+    properties:
+      adminNotes:
+        type: string
+      status:
+        enum:
+        - PENDING
+        - APPROVED
+        - REJECTED
+        type: string
+    required:
+    - status
+    type: object
+  dto.UpdatePackageRequest:
+    properties:
+      description:
+        type: string
+      discount:
+        maximum: 100
+        minimum: 0
+        type: number
+      durationMinutes:
+        minimum: 15
+        type: integer
+      id:
+        maxLength: 50
+        type: string
+      imageUrl:
+        type: string
+      isActive:
+        type: boolean
+      name:
+        type: string
+      offers:
+        items:
+          type: string
+        type: array
+      price:
+        minimum: 0
+        type: number
+    required:
+    - durationMinutes
+    - id
+    - name
+    - price
+    type: object
+  dto.UpdateThemeRequest:
+    properties:
+      description:
+        type: string
+      id:
+        maxLength: 50
+        type: string
+      imageUrl:
+        type: string
+      isActive:
+        type: boolean
+      name:
+        type: string
+      price:
+        description: Optional - defaults to 0 if not provided
+        type: number
+    required:
+    - description
+    - id
+    - imageUrl
+    - name
+    type: object
+  handlers.LoginRequest:
+    properties:
+      email:
+        type: string
+      password:
+        minLength: 6
+        type: string
+    required:
+    - email
+    - password
+    type: object
+  handlers.LoginResponse:
+    properties:
+      token:
+        type: string
+      user:
+        $ref: '#/definitions/handlers.UserInfo'
+    type: object
+  handlers.UserInfo:
+    properties:
+      email:
+        type: string
+      id:
+        type: string
+      name:
+        type: string
+      role:
+        type: string
+    type: object
+host: localhost:8080
+info:
+  contact:
+    email: support@lqstudio.com
+    name: API Support
+  description: API for photography studio booking system
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+  termsOfService: http://swagger.io/terms/
+  title: LQ Studio Photography Booking API
+  version: "1.0"
+paths:
+  /api/addons:
+    get:
+      consumes:
+      - application/json
+      description: Get list of all active add-ons available for booking
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/dto.ApiResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/dto.AddonResponse'
+                  type: array
+              type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.ApiResponse'
+      summary: Get active add-ons
+      tags:
+      - addons
+  /api/admin/addons:
+    get:
+      consumes:
+      - application/json
+      description: Get list of all add-ons including inactive ones (admin only)
+      parameters:
+      - description: Bearer token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/dto.ApiResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/dto.AddonResponse'
+                  type: array
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.ApiResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.ApiResponse'
+      security:
+      - BearerAuth: []
+      summary: Get all add-ons (Admin)
+      tags:
+      - admin-addons
+    post:
+      consumes:
+      - application/json
+      description: Create a new add-on (admin only)
+      parameters:
+      - description: Bearer token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Add-on data
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.CreateAddonRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            allOf:
+            - $ref: '#/definitions/dto.ApiResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/dto.AddonResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.ApiResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.ApiResponse'
+      security:
+      - BearerAuth: []
+      summary: Create new add-on (Admin)
+      tags:
+      - admin-addons
+  /api/admin/addons/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: Delete an add-on (admin only)
+      parameters:
+      - description: Bearer token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Add-on ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.ApiResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.ApiResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/dto.ApiResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.ApiResponse'
+      security:
+      - BearerAuth: []
+      summary: Delete add-on (Admin)
+      tags:
+      - admin-addons
+    get:
+      consumes:
+      - application/json
+      description: Get a single add-on by ID (admin only)
+      parameters:
+      - description: Bearer token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Add-on ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/dto.ApiResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/dto.AddonResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.ApiResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.ApiResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/dto.ApiResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.ApiResponse'
+      security:
+      - BearerAuth: []
+      summary: Get add-on by ID (Admin)
+      tags:
+      - admin-addons
+    put:
+      consumes:
+      - application/json
+      description: Update an existing add-on (admin only)
+      parameters:
+      - description: Bearer token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Add-on ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Add-on data
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.UpdateAddonRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/dto.ApiResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/dto.AddonResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.ApiResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.ApiResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/dto.ApiResponse'
+      security:
+      - BearerAuth: []
+      summary: Update add-on (Admin)
+      tags:
+      - admin-addons
+  /api/admin/addons/{id}/toggle-active:
+    patch:
+      consumes:
+      - application/json
+      description: Toggle add-on active/inactive status (admin only)
+      parameters:
+      - description: Bearer token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Add-on ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/dto.ApiResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/dto.AddonResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.ApiResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.ApiResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/dto.ApiResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.ApiResponse'
+      security:
+      - BearerAuth: []
+      summary: Toggle add-on active status (Admin)
+      tags:
+      - admin-addons
+  /api/admin/bookings:
+    get:
+      consumes:
+      - application/json
+      description: Get list of all bookings with optional filters and pagination (admin
+        only)
+      parameters:
+      - description: Bearer token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Filter by status
+        enum:
+        - PENDING
+        - APPROVED
+        - REJECTED
+        in: query
+        name: status
+        type: string
+      - description: Filter by customer email
+        in: query
+        name: email
+        type: string
+      - default: 20
+        description: Limit results
+        in: query
+        name: limit
+        type: integer
+      - default: 0
+        description: Offset for pagination
+        in: query
+        name: offset
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/dto.ApiResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/dto.BookingResponse'
+                  type: array
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.ApiResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.ApiResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.ApiResponse'
+      security:
+      - BearerAuth: []
+      summary: List all bookings (Admin)
+      tags:
+      - admin-bookings
+  /api/admin/bookings/{id}:
+    get:
+      consumes:
+      - application/json
+      description: Get a single booking by ID (admin only)
+      parameters:
+      - description: Bearer token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Booking ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/dto.ApiResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/dto.BookingResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.ApiResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.ApiResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/dto.ApiResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.ApiResponse'
+      security:
+      - BearerAuth: []
+      summary: Get booking by ID (Admin)
+      tags:
+      - admin-bookings
+  /api/admin/bookings/{id}/status:
+    patch:
+      consumes:
+      - application/json
+      description: Update booking status (admin only)
+      parameters:
+      - description: Bearer token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Booking ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Status update data
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.UpdateBookingStatusRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/dto.ApiResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/dto.BookingResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.ApiResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.ApiResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/dto.ApiResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.ApiResponse'
+      security:
+      - BearerAuth: []
+      summary: Update booking status (Admin)
+      tags:
+      - admin-bookings
+  /api/admin/login:
+    post:
+      consumes:
+      - application/json
+      description: Authenticate admin user and receive JWT token
+      parameters:
+      - description: Login credentials
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.LoginRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/dto.ApiResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/handlers.LoginResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.ApiResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.ApiResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.ApiResponse'
+      summary: Admin login
+      tags:
+      - auth
+  /api/admin/packages:
+    get:
+      consumes:
+      - application/json
+      description: Get list of all packages including inactive ones (admin only)
+      parameters:
+      - description: Bearer token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/dto.ApiResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/dto.PackageResponse'
+                  type: array
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.ApiResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.ApiResponse'
+      security:
+      - BearerAuth: []
+      summary: Get all packages (Admin)
+      tags:
+      - admin-packages
+    post:
+      consumes:
+      - application/json
+      description: Create a new package (admin only)
+      parameters:
+      - description: Bearer token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Package data
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.CreatePackageRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            allOf:
+            - $ref: '#/definitions/dto.ApiResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/dto.PackageResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.ApiResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.ApiResponse'
+      security:
+      - BearerAuth: []
+      summary: Create new package (Admin)
+      tags:
+      - admin-packages
+  /api/admin/packages/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: Delete a package (admin only)
+      parameters:
+      - description: Bearer token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Package ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.ApiResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.ApiResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/dto.ApiResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.ApiResponse'
+      security:
+      - BearerAuth: []
+      summary: Delete package (Admin)
+      tags:
+      - admin-packages
+    get:
+      consumes:
+      - application/json
+      description: Get a single package by ID (admin only)
+      parameters:
+      - description: Bearer token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Package ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/dto.ApiResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/dto.PackageResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.ApiResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.ApiResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/dto.ApiResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.ApiResponse'
+      security:
+      - BearerAuth: []
+      summary: Get package by ID (Admin)
+      tags:
+      - admin-packages
+    put:
+      consumes:
+      - application/json
+      description: Update an existing package (admin only)
+      parameters:
+      - description: Bearer token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Package ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Package data
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.UpdatePackageRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/dto.ApiResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/dto.PackageResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.ApiResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.ApiResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/dto.ApiResponse'
+      security:
+      - BearerAuth: []
+      summary: Update package (Admin)
+      tags:
+      - admin-packages
+  /api/admin/packages/{id}/toggle-active:
+    patch:
+      consumes:
+      - application/json
+      description: Toggle package active/inactive status (admin only)
+      parameters:
+      - description: Bearer token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Package ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/dto.ApiResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/dto.PackageResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.ApiResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.ApiResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/dto.ApiResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.ApiResponse'
+      security:
+      - BearerAuth: []
+      summary: Toggle package active status (Admin)
+      tags:
+      - admin-packages
+  /api/admin/themes:
+    get:
+      consumes:
+      - application/json
+      description: Get list of all themes including inactive ones (admin only)
+      parameters:
+      - description: Bearer token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/dto.ApiResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/dto.ThemeResponse'
+                  type: array
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.ApiResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.ApiResponse'
+      security:
+      - BearerAuth: []
+      summary: Get all themes (Admin)
+      tags:
+      - admin-themes
+    post:
+      consumes:
+      - application/json
+      description: Create a new theme (admin only)
+      parameters:
+      - description: Bearer token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Theme data
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.CreateThemeRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            allOf:
+            - $ref: '#/definitions/dto.ApiResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/dto.ThemeResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.ApiResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.ApiResponse'
+      security:
+      - BearerAuth: []
+      summary: Create new theme (Admin)
+      tags:
+      - admin-themes
+  /api/admin/themes/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: Delete a theme (admin only)
+      parameters:
+      - description: Bearer token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Theme ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.ApiResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.ApiResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/dto.ApiResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.ApiResponse'
+      security:
+      - BearerAuth: []
+      summary: Delete theme (Admin)
+      tags:
+      - admin-themes
+    get:
+      consumes:
+      - application/json
+      description: Get a single theme by ID (admin only)
+      parameters:
+      - description: Bearer token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Theme ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/dto.ApiResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/dto.ThemeResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.ApiResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.ApiResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/dto.ApiResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.ApiResponse'
+      security:
+      - BearerAuth: []
+      summary: Get theme by ID (Admin)
+      tags:
+      - admin-themes
+    put:
+      consumes:
+      - application/json
+      description: Update an existing theme (admin only)
+      parameters:
+      - description: Bearer token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Theme ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Theme data
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.UpdateThemeRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/dto.ApiResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/dto.ThemeResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.ApiResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.ApiResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/dto.ApiResponse'
+      security:
+      - BearerAuth: []
+      summary: Update theme (Admin)
+      tags:
+      - admin-themes
+  /api/admin/themes/{id}/toggle-active:
+    patch:
+      consumes:
+      - application/json
+      description: Toggle theme active/inactive status (admin only)
+      parameters:
+      - description: Bearer token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Theme ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/dto.ApiResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/dto.ThemeResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.ApiResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.ApiResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/dto.ApiResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.ApiResponse'
+      security:
+      - BearerAuth: []
+      summary: Toggle theme active status (Admin)
+      tags:
+      - admin-themes
+  /api/bookings:
+    post:
+      consumes:
+      - application/json
+      description: Create a new booking (customer-facing, no auth required)
+      parameters:
+      - description: Booking data
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.BookingRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            allOf:
+            - $ref: '#/definitions/dto.ApiResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/dto.BookingResponse'
+              type: object
+        "400":
+          description: Invalid request or validation error
+          schema:
+            $ref: '#/definitions/dto.ApiResponse'
+        "409":
+          description: Slot not available or conflict
+          schema:
+            $ref: '#/definitions/dto.ApiResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.ApiResponse'
+      summary: Create new booking
+      tags:
+      - bookings
+  /api/bookings/{id}:
+    get:
+      consumes:
+      - application/json
+      description: Get a booking by ID (public - for customers to check their booking)
+      parameters:
+      - description: Booking ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/dto.ApiResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/dto.BookingResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.ApiResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/dto.ApiResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.ApiResponse'
+      summary: Get booking by ID
+      tags:
+      - bookings
+  /api/bookings/{id}/payment-screenshot:
+    post:
+      consumes:
+      - multipart/form-data
+      description: Upload payment screenshot for a booking
+      parameters:
+      - description: Booking ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Payment screenshot image
+        in: formData
+        name: file
+        required: true
+        type: file
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/dto.ApiResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/dto.BookingResponse'
+              type: object
+        "400":
+          description: Invalid file or booking ID
+          schema:
+            $ref: '#/definitions/dto.ApiResponse'
+        "404":
+          description: Booking not found
+          schema:
+            $ref: '#/definitions/dto.ApiResponse'
+        "413":
+          description: File too large
+          schema:
+            $ref: '#/definitions/dto.ApiResponse'
+        "415":
+          description: Invalid file type
+          schema:
+            $ref: '#/definitions/dto.ApiResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.ApiResponse'
+      summary: Upload payment screenshot
+      tags:
+      - bookings
+  /api/packages:
+    get:
+      consumes:
+      - application/json
+      description: Get list of all active packages available for booking
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/dto.ApiResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/dto.PackageResponse'
+                  type: array
+              type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.ApiResponse'
+      summary: Get active packages
+      tags:
+      - packages
+  /api/themes:
+    get:
+      consumes:
+      - application/json
+      description: Get list of all active themes available for booking
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/dto.ApiResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/dto.ThemeResponse'
+                  type: array
+              type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.ApiResponse'
+      summary: Get active themes
+      tags:
+      - themes
+  /api/themes/{themeId}/available-times:
+    get:
+      consumes:
+      - application/json
+      description: Check available time slots for a specific theme or all themes on
+        a specific date. Use themeId="all" to check availability across all active
+        themes.
+      parameters:
+      - description: Theme ID or 'all' for all themes
+        in: path
+        name: themeId
+        required: true
+        type: string
+      - description: Date in YYYY-MM-DD format
+        in: query
+        name: date
+        required: true
+        type: string
+      - description: Package ID (optional)
+        in: query
+        name: packageId
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Returns availability with themeId in slots for specific theme,
+            or without themeId for all themes
+          schema:
+            allOf:
+            - $ref: '#/definitions/dto.ApiResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/dto.AvailabilityResponse'
+              type: object
+        "400":
+          description: Invalid parameters
+          schema:
+            $ref: '#/definitions/dto.ApiResponse'
+        "404":
+          description: Theme not found
+          schema:
+            $ref: '#/definitions/dto.ApiResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.ApiResponse'
+      summary: Get available time slots
+      tags:
+      - availability
+  /health:
+    get:
+      description: Check if the API and database are healthy
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/dto.ApiResponse'
+            - properties:
+                data:
+                  additionalProperties:
+                    type: string
+                  type: object
+              type: object
+        "503":
+          description: Service Unavailable
+          schema:
+            $ref: '#/definitions/dto.ApiResponse'
+      summary: Health check
+      tags:
+      - health
+schemes:
+- http
+- https
+securityDefinitions:
+  BearerAuth:
+    description: Type "Bearer" followed by a space and JWT token.
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"

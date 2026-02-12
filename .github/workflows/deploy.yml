@@ -1,0 +1,79 @@
+name: Deploy Backend
+
+on:
+  push:
+    branches:
+      - development
+      - staging
+  workflow_dispatch:  # Manual trigger for main branch
+    inputs:
+      environment:
+        description: 'Environment to deploy'
+        required: true
+        type: choice
+        options:
+          - production
+          - staging
+          - dev
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Determine deployment environment
+        id: env
+        run: |
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            echo "ENV=${{ github.event.inputs.environment }}" >> $GITHUB_OUTPUT
+            echo "BRANCH=${{ github.ref_name }}" >> $GITHUB_OUTPUT
+          elif [ "${{ github.ref_name }}" == "development" ]; then
+            echo "ENV=dev" >> $GITHUB_OUTPUT
+            echo "BRANCH=development" >> $GITHUB_OUTPUT
+          elif [ "${{ github.ref_name }}" == "staging" ]; then
+            echo "ENV=staging" >> $GITHUB_OUTPUT
+            echo "BRANCH=staging" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: Deploy to VPS
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: ${{ secrets.VPS_PORT }}
+          script: |
+            set -e
+            
+            ENV="${{ steps.env.outputs.ENV }}"
+            BRANCH="${{ steps.env.outputs.BRANCH }}"
+            PROJECT_PATH="/opt/projects/lqstudio/${ENV}/backend"
+            
+            echo "🚀 Deploying backend to ${ENV} environment from ${BRANCH} branch..."
+            
+            # Navigate to project directory
+            cd ${PROJECT_PATH}
+            
+            # Pull latest code
+            echo "📥 Pulling latest code from ${BRANCH}..."
+            git fetch origin
+            git checkout ${BRANCH}
+            git pull origin ${BRANCH}
+            
+            # Rebuild and restart containers
+            echo "🔨 Rebuilding containers..."
+            docker compose -f docker-compose.yml down
+            docker compose -f docker-compose.yml up -d --build
+            
+            # Show status
+            echo "✅ Deployment complete!"
+            docker compose -f docker-compose.yml ps
+            
+      - name: Deployment notification
+        if: always()
+        run: |
+          if [ "${{ job.status }}" == "success" ]; then
+            echo "✅ Backend deployed successfully to ${{ steps.env.outputs.ENV }}"
+          else
+            echo "❌ Backend deployment to ${{ steps.env.outputs.ENV }} failed"
+          fi

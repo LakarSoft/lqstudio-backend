@@ -1,0 +1,72 @@
+# Git files
+.git
+.gitignore
+.gitattributes
+
+# Documentation
+*.md
+LICENSE
+DEPLOYMENT.md
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# IDE and editor files
+.vscode
+.idea
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Go build artifacts
+bin/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+main
+
+# Test files
+*_test.go
+testdata/
+coverage.txt
+coverage.html
+
+# CI/CD
+.github
+.gitlab-ci.yml
+.travis.yml
+
+# Docker files (not needed in build context)
+docker-compose*.yml
+Dockerfile*
+!Dockerfile.prod
+
+# Backup files
+backups/
+*.sql.gz
+# Note: *.sql is NOT excluded here because we need migrations/*.sql files
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Node modules (if any frontend tools)
+node_modules/
+
+# OS files
+Thumbs.db
+.DS_Store
+
+# Misc
+deploy.sh
+Makefile
