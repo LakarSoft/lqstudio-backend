@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -25,6 +26,11 @@ type ServerConfig struct {
 }
 
 type DatabaseConfig struct {
+	// Raw DATABASE_URL (Neon-compatible format)
+	// Format: postgresql://user:pass@host:port/dbname?sslmode=require
+	DatabaseURL     string
+
+	// Individual fields (parsed from DATABASE_URL or set directly)
 	Host            string
 	Port            string
 	Database        string
@@ -32,6 +38,9 @@ type DatabaseConfig struct {
 	Password        string
 	Schema          string
 	Timezone        string
+	SSLMode         string
+
+	// Connection pool settings
 	MaxConns        int32
 	MinConns        int32
 	MaxConnLifetime time.Duration
@@ -113,24 +122,18 @@ func Load() (*Config, error) {
 		fmt.Println("WARNING: EMAIL_ADMIN_TO not set - admin notifications will be disabled")
 	}
 
+	// Load database configuration (DATABASE_URL takes precedence)
+	dbConfig, err := loadDatabaseConfig(maxConns, minConns, maxConnLifetime, maxConnIdleTime)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load database config: %w", err)
+	}
+
 	return &Config{
 		Server: ServerConfig{
 			Port: port,
 			Env:  getEnv("APP_ENV", "local"),
 		},
-		Database: DatabaseConfig{
-			Host:            getEnv("DB_HOST", "localhost"),
-			Port:            getEnv("DB_PORT", "5432"),
-			Database:        getEnv("DB_DATABASE", "lqstudio"),
-			Username:        getEnv("DB_USERNAME", "lqstudio_user"),
-			Password:        getEnv("DB_PASSWORD", "lqstudio_password_123"),
-			Schema:          getEnv("DB_SCHEMA", "public"),
-			Timezone:        getEnv("DB_TIMEZONE", "Asia/Kuala_Lumpur"),
-			MaxConns:        maxConns,
-			MinConns:        minConns,
-			MaxConnLifetime: maxConnLifetime,
-			MaxConnIdleTime: maxConnIdleTime,
-		},
+		Database: dbConfig,
 		JWT: JWTConfig{
 			Secret:      jwtSecret,
 			ExpiryHours: jwtExpiryHours,
@@ -151,15 +154,87 @@ func Load() (*Config, error) {
 	}, nil
 }
 
+// loadDatabaseConfig loads database configuration from DATABASE_URL or individual env vars
+func loadDatabaseConfig(maxConns, minConns int32, maxConnLifetime, maxConnIdleTime time.Duration) (DatabaseConfig, error) {
+	config := DatabaseConfig{
+		MaxConns:        maxConns,
+		MinConns:        minConns,
+		MaxConnLifetime: maxConnLifetime,
+		MaxConnIdleTime: maxConnIdleTime,
+	}
+
+	// Check for DATABASE_URL first (Neon-compatible)
+	databaseURL := getEnv("DATABASE_URL", "")
+	if databaseURL != "" {
+		// Parse DATABASE_URL
+		parsedURL, err := url.Parse(databaseURL)
+		if err != nil {
+			return config, fmt.Errorf("invalid DATABASE_URL: %w", err)
+		}
+
+		config.DatabaseURL = databaseURL
+		config.Host = parsedURL.Hostname()
+		config.Port = parsedURL.Port()
+		if config.Port == "" {
+			config.Port = "5432" // Default PostgreSQL port
+		}
+
+		config.Database = strings.TrimPrefix(parsedURL.Path, "/")
+		config.Username = parsedURL.User.Username()
+		password, _ := parsedURL.User.Password()
+		config.Password = password
+
+		// Parse query parameters
+		queryParams := parsedURL.Query()
+		config.SSLMode = queryParams.Get("sslmode")
+		if config.SSLMode == "" {
+			config.SSLMode = "require" // Default for Neon
+		}
+
+		config.Schema = queryParams.Get("search_path")
+		if config.Schema == "" {
+			config.Schema = getEnv("DB_SCHEMA", "public")
+		}
+
+		config.Timezone = queryParams.Get("timezone")
+		if config.Timezone == "" {
+			config.Timezone = getEnv("DB_TIMEZONE", "Asia/Kuala_Lumpur")
+		}
+
+		fmt.Printf("INFO: Using DATABASE_URL for database connection (host: %s)\n", config.Host)
+	} else {
+		// Fall back to individual environment variables (for local development)
+		config.Host = getEnv("DB_HOST", "localhost")
+		config.Port = getEnv("DB_PORT", "5432")
+		config.Database = getEnv("DB_DATABASE", "lqstudio")
+		config.Username = getEnv("DB_USERNAME", "lqstudio_user")
+		config.Password = getEnv("DB_PASSWORD", "lqstudio_password_123")
+		config.Schema = getEnv("DB_SCHEMA", "public")
+		config.Timezone = getEnv("DB_TIMEZONE", "Asia/Kuala_Lumpur")
+		config.SSLMode = getEnv("DB_SSLMODE", "disable") // Local development typically doesn't use SSL
+
+		fmt.Println("INFO: Using individual DB_* environment variables for database connection")
+	}
+
+	return config, nil
+}
+
 // ConnectionString returns the PostgreSQL connection string
 func (c *DatabaseConfig) ConnectionString() string {
+	// If DATABASE_URL is set, use it directly
+	if c.DatabaseURL != "" {
+		return c.DatabaseURL
+	}
+
+	// Otherwise, construct from individual fields
 	return fmt.Sprintf(
-		"postgres://%s:%s@%s:%s/%s?sslmode=disable&search_path=%s&timezone=%s",
+		"postgres://%s:%s@%s:%s/%s?sslmode=%s&search_path=%s&timezone=%s",
 		c.Username,
 		c.Password,
 		c.Host,
 		c.Port,
 		c.Database,
+		c.SSLMode,
 		c.Schema,
 		c.Timezone,
 	)
