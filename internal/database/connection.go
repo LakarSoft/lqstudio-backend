@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"fmt"
 	"lqstudio-backend/internal/config"
-	"strconv"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -23,33 +22,40 @@ func New(cfg *config.DatabaseConfig) (*Connection, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	pgxCfg, err := pgxpool.ParseConfig("")
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse pgx config: %w", err)
+	var pgxCfg *pgxpool.Config
+	var err error
+
+	// Use DATABASE_URL if available (Neon-compatible)
+	if cfg.DatabaseURL != "" {
+		pgxCfg, err = pgxpool.ParseConfig(cfg.DatabaseURL)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse DATABASE_URL: %w", err)
+		}
+	} else {
+		// Build connection string from individual fields
+		connStr := cfg.ConnectionString()
+		pgxCfg, err = pgxpool.ParseConfig(connStr)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse connection config: %w", err)
+		}
 	}
 
-	// Parse port string to integer
-	port, err := strconv.Atoi(cfg.Port)
-	if err != nil {
-		return nil, fmt.Errorf("invalid port number: %w", err)
+	// Ensure schema and timezone are set in runtime params
+	if pgxCfg.ConnConfig.RuntimeParams == nil {
+		pgxCfg.ConnConfig.RuntimeParams = make(map[string]string)
+	}
+	if _, exists := pgxCfg.ConnConfig.RuntimeParams["search_path"]; !exists && cfg.Schema != "" {
+		pgxCfg.ConnConfig.RuntimeParams["search_path"] = cfg.Schema
+	}
+	if _, exists := pgxCfg.ConnConfig.RuntimeParams["timezone"]; !exists && cfg.Timezone != "" {
+		pgxCfg.ConnConfig.RuntimeParams["timezone"] = cfg.Timezone
 	}
 
-	pgxCfg.ConnConfig.Host = cfg.Host
-	pgxCfg.ConnConfig.Port = uint16(port)
-	pgxCfg.ConnConfig.User = cfg.Username
-	pgxCfg.ConnConfig.Password = cfg.Password
-	pgxCfg.ConnConfig.Database = cfg.Database
-
-	pgxCfg.ConnConfig.RuntimeParams = map[string]string{
-		"search_path": cfg.Schema,
-		"timezone":    cfg.Timezone,
-	}
-
-	// Optional but recommended pool tuning
-	pgxCfg.MaxConns = 20
-	pgxCfg.MinConns = 2
-	pgxCfg.MaxConnLifetime = time.Hour
-	pgxCfg.MaxConnIdleTime = 30 * time.Minute
+	// Apply connection pool settings from config
+	pgxCfg.MaxConns = cfg.MaxConns
+	pgxCfg.MinConns = cfg.MinConns
+	pgxCfg.MaxConnLifetime = cfg.MaxConnLifetime
+	pgxCfg.MaxConnIdleTime = cfg.MaxConnIdleTime
 
 	pool, err := pgxpool.NewWithConfig(ctx, pgxCfg)
 	if err != nil {
@@ -82,16 +88,22 @@ func (c *Connection) Health(ctx context.Context) error {
 // GetStdDB returns a standard database/sql connection for migration tools
 // Note: This creates a new connection - caller is responsible for closing it
 func (c *Connection) GetStdDB() (*sql.DB, error) {
-	// Build connection string for database/sql
-	connStr := fmt.Sprintf(
-		"host=%s port=%s user=%s password=%s dbname=%s sslmode=disable search_path=%s",
-		c.config.Host,
-		c.config.Port,
-		c.config.Username,
-		c.config.Password,
-		c.config.Database,
-		c.config.Schema,
-	)
+	// Use DATABASE_URL if available, otherwise build connection string
+	var connStr string
+	if c.config.DatabaseURL != "" {
+		connStr = c.config.DatabaseURL
+	} else {
+		connStr = fmt.Sprintf(
+			"host=%s port=%s user=%s password=%s dbname=%s sslmode=%s search_path=%s",
+			c.config.Host,
+			c.config.Port,
+			c.config.Username,
+			c.config.Password,
+			c.config.Database,
+			c.config.SSLMode,
+			c.config.Schema,
+		)
+	}
 
 	// Open connection using pgx driver
 	db, err := sql.Open("pgx", connStr)
