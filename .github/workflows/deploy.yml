@@ -62,12 +62,12 @@ jobs:
             
             # Rebuild and restart containers
             echo "🔨 Rebuilding containers..."
-            docker compose -f docker-compose.yml down
-            docker compose -f docker-compose.yml up -d --build
+            cd /opt/projects/lqstudio/${ENV}
+            docker compose up -d --build backend
             
             # Show status
             echo "✅ Deployment complete!"
-            docker compose -f docker-compose.yml ps
+            docker compose ps backend
             
       - name: Deployment notification
         if: always()
