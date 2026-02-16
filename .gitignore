@@ -42,3 +42,8 @@ main
 # Uploaded files
 uploads/
 
+# docs
+docs/diagrams
+docs/plans
+.claude*
+CLAUDE*
