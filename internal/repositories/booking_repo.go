@@ -96,7 +96,22 @@ func (r *BookingRepository) Create(ctx context.Context, booking *models.Booking)
 	}
 
 	// Update booking with created values
-	*booking = *r.toBookingModel(created)
+	updatedBooking := r.toBookingModel(created)
+
+	// Fetch the slots and addons that were just created with their generated IDs
+	slotRows, err := r.queries.GetBookingSlots(ctx, created.ID)
+	if err != nil {
+		return fmt.Errorf("failed to get created booking slots: %w", err)
+	}
+	updatedBooking.Slots = r.toSlotModels(slotRows)
+
+	addonRows, err := r.queries.GetBookingAddons(ctx, created.ID)
+	if err != nil {
+		return fmt.Errorf("failed to get created booking addons: %w", err)
+	}
+	updatedBooking.Addons = r.toAddonModels(addonRows)
+
+	*booking = *updatedBooking
 	return nil
 }
 
