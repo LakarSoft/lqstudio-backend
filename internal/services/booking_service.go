@@ -250,8 +250,8 @@ func (s *BookingService) ListBookings(ctx context.Context, limit, offset int32, 
 	return dto.ToBookingsResponse(bookings), nil
 }
 
-// UpdateBookingStatus updates booking status
-func (s *BookingService) UpdateBookingStatus(ctx context.Context, bookingID string, req *dto.UpdateBookingStatusRequest) (*dto.BookingResponse, error) {
+// UpdateBookingStatus updates booking status and sends customer notification email
+func (s *BookingService) UpdateBookingStatus(ctx context.Context, bookingID string, req *dto.UpdateBookingStatusRequest) (*dto.UpdateBookingStatusResponse, error) {
 	// Validate status is one of: PENDING, APPROVED, REJECTED
 	status := models.BookingStatus(req.Status)
 	if status != models.BookingStatusPending &&
@@ -274,13 +274,88 @@ func (s *BookingService) UpdateBookingStatus(ctx context.Context, bookingID stri
 		return nil, errors.NewDatabaseError("update booking status", err)
 	}
 
-	// Get updated booking
+	// Get updated booking with slots and addons
 	booking, err = s.bookingRepo.GetByID(ctx, bookingID)
 	if err != nil {
 		return nil, errors.NewDatabaseError("get updated booking", err)
 	}
 
-	return dto.ToBookingResponse(booking), nil
+	// Prepare response
+	response := &dto.UpdateBookingStatusResponse{
+		Booking:               dto.ToBookingResponse(booking),
+		EmailNotificationSent: false,
+		EmailError:            "",
+	}
+
+	// Send customer notification email for APPROVED or REJECTED status
+	// Only send if email client is configured and status is APPROVED or REJECTED
+	if s.emailClient != nil && (status == models.BookingStatusApproved || status == models.BookingStatusRejected) {
+		// Fetch package details
+		pkg, err := s.packageRepo.GetByID(ctx, booking.PackageID)
+		if err != nil {
+			s.logger.Error("Failed to fetch package for status update email",
+				zap.String("booking_id", bookingID),
+				zap.Error(err),
+			)
+			response.EmailError = "Failed to fetch booking details"
+			return response, nil
+		}
+
+		// Prepare email data
+		slots, addons, err := s.prepareEmailData(ctx, booking)
+		if err != nil {
+			s.logger.Error("Failed to prepare email data for status update",
+				zap.String("booking_id", bookingID),
+				zap.Error(err),
+			)
+			response.EmailError = "Failed to prepare email data"
+			return response, nil
+		}
+
+		// Send appropriate email based on status
+		var emailErr error
+		if status == models.BookingStatusApproved {
+			emailErr = s.emailClient.SendBookingApproval(
+				booking.CustomerEmail,
+				booking,
+				pkg.Name,
+				slots,
+				addons,
+			)
+			if emailErr != nil {
+				s.logger.Error("Failed to send booking approval email",
+					zap.String("booking_id", bookingID),
+					zap.Error(emailErr),
+				)
+				metrics.EmailFailuresTotal.WithLabelValues("booking_approval").Inc()
+				response.EmailError = "Failed to send approval email to customer"
+			} else {
+				metrics.EmailNotificationsTotal.WithLabelValues("booking_approval").Inc()
+				response.EmailNotificationSent = true
+			}
+		} else if status == models.BookingStatusRejected {
+			emailErr = s.emailClient.SendBookingRejection(
+				booking.CustomerEmail,
+				booking,
+				pkg.Name,
+				slots,
+				addons,
+			)
+			if emailErr != nil {
+				s.logger.Error("Failed to send booking rejection email",
+					zap.String("booking_id", bookingID),
+					zap.Error(emailErr),
+				)
+				metrics.EmailFailuresTotal.WithLabelValues("booking_rejection").Inc()
+				response.EmailError = "Failed to send rejection email to customer"
+			} else {
+				metrics.EmailNotificationsTotal.WithLabelValues("booking_rejection").Inc()
+				response.EmailNotificationSent = true
+			}
+		}
+	}
+
+	return response, nil
 }
 
 // UpdatePaymentScreenshot updates the payment screenshot URL
@@ -444,53 +519,14 @@ func (s *BookingService) sendBookingEmails(ctx context.Context, booking *models.
 		return
 	}
 
-	// Prepare slot information for email
-	s.logger.Info("Preparing email slots",
-		zap.String("booking_id", booking.ID),
-		zap.Int("booking_slots_count", len(booking.Slots)),
-	)
-
-	slots := make([]email.SlotInfo, len(booking.Slots))
-	for i, slot := range booking.Slots {
-		// Get theme name
-		theme, err := s.themeRepo.GetByID(ctx, slot.ThemeID)
-		themeName := slot.ThemeID // fallback to ID if theme not found
-		if err == nil {
-			themeName = theme.Name
-		}
-
-		slots[i] = email.SlotInfo{
-			ThemeName: themeName,
-			Date:      slot.Date.Format("Monday, 02 Jan 2006"),
-			Time:      slot.Time,
-		}
-	}
-
-	s.logger.Info("Email slots prepared",
-		zap.String("booking_id", booking.ID),
-		zap.Int("slots_count", len(slots)),
-	)
-
-	// Prepare addon information for email
-	addons := []email.AddonInfo{}
-	for _, bookingAddon := range booking.Addons {
-		// Get addon details
-		addon, err := s.addonRepo.GetByID(ctx, bookingAddon.AddonID)
-		if err != nil {
-			s.logger.Warn("Failed to get addon details for email",
-				zap.String("booking_id", booking.ID),
-				zap.String("addon_id", bookingAddon.AddonID),
-				zap.Error(err),
-			)
-			continue
-		}
-
-		itemTotal := addon.Price.Mul(decimal.NewFromInt(int64(bookingAddon.Quantity)))
-		addons = append(addons, email.AddonInfo{
-			Name:     addon.Name,
-			Quantity: bookingAddon.Quantity,
-			Price:    itemTotal.StringFixed(2),
-		})
+	// Prepare email data (slots and addons)
+	slots, addons, err := s.prepareEmailData(ctx, booking)
+	if err != nil {
+		s.logger.Error("Failed to prepare email data",
+			zap.String("booking_id", booking.ID),
+			zap.Error(err),
+		)
+		return
 	}
 
 	// Send customer confirmation email
@@ -526,6 +562,61 @@ func (s *BookingService) sendBookingEmails(ctx context.Context, booking *models.
 	} else {
 		metrics.EmailNotificationsTotal.WithLabelValues("admin_notification").Inc()
 	}
+}
+
+// prepareEmailData prepares slot and addon information for email templates
+// Returns slots info, addons info, and any error encountered
+func (s *BookingService) prepareEmailData(ctx context.Context, booking *models.Booking) ([]email.SlotInfo, []email.AddonInfo, error) {
+	// Prepare slot information
+	s.logger.Info("Preparing email slots",
+		zap.String("booking_id", booking.ID),
+		zap.Int("booking_slots_count", len(booking.Slots)),
+	)
+
+	slots := make([]email.SlotInfo, len(booking.Slots))
+	for i, slot := range booking.Slots {
+		// Get theme name
+		theme, err := s.themeRepo.GetByID(ctx, slot.ThemeID)
+		themeName := slot.ThemeID // fallback to ID if theme not found
+		if err == nil {
+			themeName = theme.Name
+		}
+
+		slots[i] = email.SlotInfo{
+			ThemeName: themeName,
+			Date:      slot.Date.Format("Monday, 02 Jan 2006"),
+			Time:      slot.Time,
+		}
+	}
+
+	s.logger.Info("Email slots prepared",
+		zap.String("booking_id", booking.ID),
+		zap.Int("slots_count", len(slots)),
+	)
+
+	// Prepare addon information
+	addons := []email.AddonInfo{}
+	for _, bookingAddon := range booking.Addons {
+		// Get addon details
+		addon, err := s.addonRepo.GetByID(ctx, bookingAddon.AddonID)
+		if err != nil {
+			s.logger.Warn("Failed to get addon details for email",
+				zap.String("booking_id", booking.ID),
+				zap.String("addon_id", bookingAddon.AddonID),
+				zap.Error(err),
+			)
+			continue
+		}
+
+		itemTotal := addon.Price.Mul(decimal.NewFromInt(int64(bookingAddon.Quantity)))
+		addons = append(addons, email.AddonInfo{
+			Name:     addon.Name,
+			Quantity: bookingAddon.Quantity,
+			Price:    itemTotal.StringFixed(2),
+		})
+	}
+
+	return slots, addons, nil
 }
 
 // generateBookingID generates a unique booking ID in format: bkg-{timestamp}-{random}

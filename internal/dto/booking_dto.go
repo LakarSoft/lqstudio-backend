@@ -101,6 +101,14 @@ type UpdateBookingStatusRequest struct {
 	AdminNotes string `json:"adminNotes,omitempty"`
 }
 
+// UpdateBookingStatusResponse extends BookingResponse with email notification status
+// Used to inform admin if customer notification email was sent successfully
+type UpdateBookingStatusResponse struct {
+	Booking              *BookingResponse `json:"booking"`
+	EmailNotificationSent bool             `json:"emailNotificationSent"`
+	EmailError            string           `json:"emailError,omitempty"`
+}
+
 // BookingFilters for admin booking list with pagination
 type BookingFilters struct {
 	Status string `query:"status"` // Filter by status
