@@ -185,7 +185,19 @@ func (s *BookingService) CreateBooking(ctx context.Context, req *dto.BookingRequ
 	metrics.BookingsTotal.Inc()
 
 	// 10. Send email notifications (non-blocking - don't fail booking if emails fail)
-	go s.sendBookingEmails(context.Background(), booking, pkg)
+	// Fetch complete booking with slots to ensure email has all data
+	go func(id string) {
+		// Fetch fresh booking from database to ensure slots and addons are populated
+		freshBooking, fetchErr := s.bookingRepo.GetByID(context.Background(), id)
+		if fetchErr != nil {
+			s.logger.Error("Failed to fetch booking for email notification",
+				zap.String("booking_id", id),
+				zap.Error(fetchErr),
+			)
+			return
+		}
+		s.sendBookingEmails(context.Background(), freshBooking, pkg)
+	}(bookingID)
 
 	// 11. Return booking response
 	return dto.ToBookingResponse(booking), nil
@@ -433,6 +445,11 @@ func (s *BookingService) sendBookingEmails(ctx context.Context, booking *models.
 	}
 
 	// Prepare slot information for email
+	s.logger.Info("Preparing email slots",
+		zap.String("booking_id", booking.ID),
+		zap.Int("booking_slots_count", len(booking.Slots)),
+	)
+
 	slots := make([]email.SlotInfo, len(booking.Slots))
 	for i, slot := range booking.Slots {
 		// Get theme name
@@ -449,9 +466,14 @@ func (s *BookingService) sendBookingEmails(ctx context.Context, booking *models.
 		}
 	}
 
+	s.logger.Info("Email slots prepared",
+		zap.String("booking_id", booking.ID),
+		zap.Int("slots_count", len(slots)),
+	)
+
 	// Prepare addon information for email
-	addons := make([]email.AddonInfo, len(booking.Addons))
-	for i, bookingAddon := range booking.Addons {
+	addons := []email.AddonInfo{}
+	for _, bookingAddon := range booking.Addons {
 		// Get addon details
 		addon, err := s.addonRepo.GetByID(ctx, bookingAddon.AddonID)
 		if err != nil {
@@ -464,11 +486,11 @@ func (s *BookingService) sendBookingEmails(ctx context.Context, booking *models.
 		}
 
 		itemTotal := addon.Price.Mul(decimal.NewFromInt(int64(bookingAddon.Quantity)))
-		addons[i] = email.AddonInfo{
+		addons = append(addons, email.AddonInfo{
 			Name:     addon.Name,
 			Quantity: bookingAddon.Quantity,
 			Price:    itemTotal.StringFixed(2),
-		}
+		})
 	}
 
 	// Send customer confirmation email
