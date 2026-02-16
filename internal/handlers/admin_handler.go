@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"fmt"
 	"net/http"
 	"strconv"
 
@@ -749,7 +750,7 @@ func (h *AdminHandler) GetBooking(c echo.Context) error {
 
 // UpdateBookingStatus godoc
 // @Summary Update booking status (Admin)
-// @Description Update booking status (admin only)
+// @Description Update booking status and send customer notification email (admin only)
 // @Tags admin-bookings
 // @Accept json
 // @Produce json
@@ -757,7 +758,7 @@ func (h *AdminHandler) GetBooking(c echo.Context) error {
 // @Param Authorization header string true "Bearer token"
 // @Param id path string true "Booking ID"
 // @Param request body dto.UpdateBookingStatusRequest true "Status update data"
-// @Success 200 {object} dto.ApiResponse{data=dto.BookingResponse}
+// @Success 200 {object} dto.ApiResponse{data=dto.UpdateBookingStatusResponse}
 // @Failure 400 {object} dto.ApiResponse
 // @Failure 401 {object} dto.ApiResponse
 // @Failure 404 {object} dto.ApiResponse
@@ -774,7 +775,7 @@ func (h *AdminHandler) UpdateBookingStatus(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid request body")
 	}
 
-	booking, err := h.bookingService.UpdateBookingStatus(c.Request().Context(), id, &req)
+	response, err := h.bookingService.UpdateBookingStatus(c.Request().Context(), id, &req)
 	if err != nil {
 		if contains(err.Error(), "not found") {
 			return echo.NewHTTPError(http.StatusNotFound, err.Error())
@@ -785,7 +786,17 @@ func (h *AdminHandler) UpdateBookingStatus(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
 	}
 
-	return SendOK(c, booking, "Booking retrieved successfully")
+	// Build response message based on email notification status
+	message := "Booking status updated successfully"
+	if req.Status == "APPROVED" || req.Status == "REJECTED" {
+		if response.EmailNotificationSent {
+			message = "Booking status updated successfully and customer has been notified via email"
+		} else if response.EmailError != "" {
+			message = fmt.Sprintf("Booking status updated successfully, but failed to send customer notification: %s. Please contact the customer directly.", response.EmailError)
+		}
+	}
+
+	return SendOK(c, response, message)
 }
 
 // ================================================================================
