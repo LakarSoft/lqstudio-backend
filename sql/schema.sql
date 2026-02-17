@@ -1,6 +1,6 @@
 -- This file contains the database schema for sqlc to understand the structure
 -- It should match the migrations but is used by sqlc for code generation
--- This matches migration 00006_convert_to_string_ids.sql
+-- This matches migration 00001_create_tables.sql
 
 -- Users table (serves as both customer and admin)
 CREATE TABLE users (
