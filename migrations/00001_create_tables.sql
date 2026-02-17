@@ -1,17 +1,6 @@
 -- +goose Up
--- Convert all tables from INTEGER to VARCHAR string IDs
--- This requires dropping and recreating foreign key constraints
 
--- 1. Drop dependent tables first (they will be recreated)
-DROP TABLE IF EXISTS booking_add_ons CASCADE;
-DROP TABLE IF EXISTS booking_theme_slots CASCADE;
-DROP TABLE IF EXISTS bookings CASCADE;
-DROP TABLE IF EXISTS add_ons CASCADE;
-DROP TABLE IF EXISTS themes CASCADE;
-DROP TABLE IF EXISTS packages CASCADE;
-DROP TABLE IF EXISTS users CASCADE;
-
--- 2. Recreate Users table (now serves as both customer and admin)
+-- Users table (serves as both customer and admin)
 CREATE TABLE users (
     id VARCHAR(255) PRIMARY KEY,
     email VARCHAR(255) UNIQUE NOT NULL,
@@ -25,11 +14,12 @@ CREATE TABLE users (
 );
 CREATE INDEX idx_users_email ON users(email);
 
--- 3. Recreate Packages table
+-- Packages table
 CREATE TABLE packages (
     id VARCHAR(255) PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
     description TEXT,
+    duration_minutes INTEGER NOT NULL DEFAULT 20,
     price DECIMAL(10, 2) NOT NULL,
     discount DECIMAL(5, 2) DEFAULT 0,
     offers JSONB,
@@ -39,7 +29,7 @@ CREATE TABLE packages (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- 4. Recreate Themes table
+-- Themes table
 CREATE TABLE themes (
     id VARCHAR(255) PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
@@ -51,7 +41,7 @@ CREATE TABLE themes (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- 5. Recreate Addons table
+-- Addons table
 CREATE TABLE addons (
     id VARCHAR(255) PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
@@ -63,7 +53,7 @@ CREATE TABLE addons (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- 6. Recreate Bookings table
+-- Bookings table
 CREATE TABLE bookings (
     id VARCHAR(255) PRIMARY KEY,
     package_id VARCHAR(255) NOT NULL REFERENCES packages(id) ON DELETE RESTRICT,
@@ -83,7 +73,7 @@ CREATE INDEX idx_bookings_status ON bookings(status);
 CREATE INDEX idx_bookings_created_at ON bookings(created_at DESC);
 CREATE INDEX idx_bookings_email ON bookings(customer_email);
 
--- 7. Recreate Booking Slots table
+-- Booking Slots table
 CREATE TABLE booking_slots (
     id SERIAL PRIMARY KEY,
     booking_id VARCHAR(255) NOT NULL REFERENCES bookings(id) ON DELETE CASCADE,
@@ -95,7 +85,7 @@ CREATE TABLE booking_slots (
 CREATE INDEX idx_booking_slots_booking_id ON booking_slots(booking_id);
 CREATE INDEX idx_booking_slots_availability ON booking_slots(date, time, theme_id);
 
--- 8. Recreate Booking Addons table
+-- Booking Addons table
 CREATE TABLE booking_addons (
     id SERIAL PRIMARY KEY,
     booking_id VARCHAR(255) NOT NULL REFERENCES bookings(id) ON DELETE CASCADE,
