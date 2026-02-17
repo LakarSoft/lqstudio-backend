@@ -237,7 +237,7 @@ func (c *Client) buildCustomerConfirmationHTML(booking *models.Booking, packageN
         </div>
 
         <h3>Payment Instructions</h3>
-        <p>Please complete your payment and upload the payment screenshot through our booking system. Your booking will be confirmed once payment is verified.</p>
+        <p>Please complete your payment and send the payment screenshot to our WhatsApp number. Your booking will be confirmed once payment is verified.</p>
 
         <div class="footer">
             <p><strong>Note:</strong> If you have any questions about your booking, please don't hesitate to contact us.</p>
