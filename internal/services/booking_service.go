@@ -216,43 +216,34 @@ func (s *BookingService) GetBookingByID(ctx context.Context, bookingID string) (
 	return dto.ToBookingResponse(booking), nil
 }
 
-// ListBookings lists bookings with optional filters and pagination
-func (s *BookingService) ListBookings(ctx context.Context, limit, offset int32, statusFilter *models.BookingStatus, emailFilter *string) ([]*dto.BookingResponse, error) {
-	var bookings []*models.Booking
-	var err error
+// ListBookings lists bookings with comprehensive filters, sorting, and pagination
+func (s *BookingService) ListBookings(ctx context.Context, filters *dto.BookingFilters) (*dto.PaginatedBookingsResponse, error) {
+	filters.Defaults()
 
-	// Apply filters
-	if statusFilter != nil {
-		bookings, err = s.bookingRepo.GetByStatus(ctx, *statusFilter)
-	} else if emailFilter != nil {
-		bookings, err = s.bookingRepo.GetByCustomerEmail(ctx, *emailFilter)
-	} else {
-		bookings, err = s.bookingRepo.ListAll(ctx, limit, offset)
-	}
-
+	bookings, total, err := s.bookingRepo.ListWithFilters(ctx, filters)
 	if err != nil {
 		return nil, errors.NewDatabaseError("list bookings", err)
 	}
 
-	// Apply manual pagination if using filtered results
-	if statusFilter != nil || emailFilter != nil {
-		start := int(offset)
-		end := start + int(limit)
-		if start > len(bookings) {
-			start = len(bookings)
-		}
-		if end > len(bookings) {
-			end = len(bookings)
-		}
-		bookings = bookings[start:end]
+	totalPages := total / filters.Limit
+	if total%filters.Limit != 0 {
+		totalPages++
 	}
 
-	return dto.ToBookingsResponse(bookings), nil
+	return &dto.PaginatedBookingsResponse{
+		Data: dto.ToBookingsResponse(bookings),
+		Pagination: dto.PaginationInfo{
+			Page:       filters.Page,
+			Limit:      filters.Limit,
+			Total:      total,
+			TotalPages: totalPages,
+		},
+	}, nil
 }
 
 // UpdateBookingStatus updates booking status and sends customer notification email
 func (s *BookingService) UpdateBookingStatus(ctx context.Context, bookingID string, req *dto.UpdateBookingStatusRequest) (*dto.UpdateBookingStatusResponse, error) {
-	// Validate status is one of: PENDING, APPROVED, REJECTED
+	// Validate status is one of: PENDING, APPROVED, REJECTED, COMPLETED
 	status := models.BookingStatus(req.Status)
 	if status != models.BookingStatusPending &&
 		status != models.BookingStatusApproved &&

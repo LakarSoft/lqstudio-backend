@@ -122,7 +122,7 @@ definitions:
           $ref: '#/definitions/dto.SlotResponse'
         type: array
       status:
-        description: PENDING | APPROVED | REJECTED
+        description: PENDING | APPROVED | REJECTED | COMPLETED
         type: string
       totalPrice:
         type: number
@@ -254,6 +254,26 @@ definitions:
         description: Base price in MYR
         type: number
     type: object
+  dto.PaginatedBookingsResponse:
+    properties:
+      data:
+        items:
+          $ref: '#/definitions/dto.BookingResponse'
+        type: array
+      pagination:
+        $ref: '#/definitions/dto.PaginationInfo'
+    type: object
+  dto.PaginationInfo:
+    properties:
+      limit:
+        type: integer
+      page:
+        type: integer
+      total:
+        type: integer
+      totalPages:
+        type: integer
+    type: object
   dto.SlotRequest:
     properties:
       date:
@@ -327,9 +347,19 @@ definitions:
         - PENDING
         - APPROVED
         - REJECTED
+        - COMPLETED
         type: string
     required:
     - status
+    type: object
+  dto.UpdateBookingStatusResponse:
+    properties:
+      booking:
+        $ref: '#/definitions/dto.BookingResponse'
+      emailError:
+        type: string
+      emailNotificationSent:
+        type: boolean
     type: object
   dto.UpdatePackageRequest:
     properties:
@@ -730,8 +760,8 @@ paths:
     get:
       consumes:
       - application/json
-      description: Get list of all bookings with optional filters and pagination (admin
-        only)
+      description: Get list of all bookings with filters, search, sorting, and pagination
+        (admin only)
       parameters:
       - description: Bearer token
         in: header
@@ -743,22 +773,65 @@ paths:
         - PENDING
         - APPROVED
         - REJECTED
+        - COMPLETED
         in: query
         name: status
         type: string
-      - description: Filter by customer email
+      - description: Filter by customer email (partial match)
         in: query
         name: email
         type: string
+      - description: Filter by package ID
+        in: query
+        name: packageId
+        type: string
+      - description: Filter by theme ID
+        in: query
+        name: themeId
+        type: string
+      - description: Filter by slot date (YYYY-MM-DD)
+        in: query
+        name: slotDate
+        type: string
+      - description: Filter bookings created from this date (YYYY-MM-DD)
+        in: query
+        name: dateFrom
+        type: string
+      - description: Filter bookings created up to this date (YYYY-MM-DD)
+        in: query
+        name: dateTo
+        type: string
+      - description: Search customer name, email, or phone
+        in: query
+        name: search
+        type: string
+      - default: createdAt
+        description: Sort field
+        enum:
+        - createdAt
+        - updatedAt
+        - totalPrice
+        - status
+        in: query
+        name: sortBy
+        type: string
+      - default: desc
+        description: Sort order
+        enum:
+        - asc
+        - desc
+        in: query
+        name: order
+        type: string
+      - default: 1
+        description: Page number
+        in: query
+        name: page
+        type: integer
       - default: 20
-        description: Limit results
+        description: Items per page
         in: query
         name: limit
-        type: integer
-      - default: 0
-        description: Offset for pagination
-        in: query
-        name: offset
         type: integer
       produces:
       - application/json
@@ -770,9 +843,7 @@ paths:
             - $ref: '#/definitions/dto.ApiResponse'
             - properties:
                 data:
-                  items:
-                    $ref: '#/definitions/dto.BookingResponse'
-                  type: array
+                  $ref: '#/definitions/dto.PaginatedBookingsResponse'
               type: object
         "400":
           description: Bad Request
@@ -844,7 +915,8 @@ paths:
     patch:
       consumes:
       - application/json
-      description: Update booking status (admin only)
+      description: Update booking status and send customer notification email (admin
+        only)
       parameters:
       - description: Bearer token
         in: header
@@ -872,7 +944,7 @@ paths:
             - $ref: '#/definitions/dto.ApiResponse'
             - properties:
                 data:
-                  $ref: '#/definitions/dto.BookingResponse'
+                  $ref: '#/definitions/dto.UpdateBookingStatusResponse'
               type: object
         "400":
           description: Bad Request
@@ -1157,6 +1229,60 @@ paths:
       summary: Update package (Admin)
       tags:
       - admin-packages
+  /api/admin/packages/{id}/image:
+    post:
+      consumes:
+      - multipart/form-data
+      description: Upload an image for a package (admin only)
+      parameters:
+      - description: Bearer token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Package ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Package image
+        in: formData
+        name: file
+        required: true
+        type: file
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/dto.ApiResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/dto.PackageResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.ApiResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.ApiResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/dto.ApiResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.ApiResponse'
+      security:
+      - BearerAuth: []
+      summary: Upload package image (Admin)
+      tags:
+      - admin-packages
   /api/admin/packages/{id}/toggle-active:
     patch:
       consumes:
@@ -1427,6 +1553,60 @@ paths:
       security:
       - BearerAuth: []
       summary: Update theme (Admin)
+      tags:
+      - admin-themes
+  /api/admin/themes/{id}/image:
+    post:
+      consumes:
+      - multipart/form-data
+      description: Upload an image for a theme (admin only)
+      parameters:
+      - description: Bearer token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Theme ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Theme image
+        in: formData
+        name: file
+        required: true
+        type: file
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/dto.ApiResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/dto.ThemeResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.ApiResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.ApiResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/dto.ApiResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.ApiResponse'
+      security:
+      - BearerAuth: []
+      summary: Upload theme image (Admin)
       tags:
       - admin-themes
   /api/admin/themes/{id}/toggle-active:

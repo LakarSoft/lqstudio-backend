@@ -251,3 +251,36 @@ func (q *Queries) UpdatePackage(ctx context.Context, arg UpdatePackageParams) (P
 	)
 	return i, err
 }
+
+const updatePackageImageURL = `-- name: UpdatePackageImageURL :one
+UPDATE packages
+SET
+    image_url = $2,
+    updated_at = NOW()
+WHERE id = $1::varchar
+RETURNING id, name, description, duration_minutes, price, discount, offers, image_url, is_active, created_at, updated_at
+`
+
+type UpdatePackageImageURLParams struct {
+	Column1  string  `json:"column_1"`
+	ImageUrl *string `json:"image_url"`
+}
+
+func (q *Queries) UpdatePackageImageURL(ctx context.Context, arg UpdatePackageImageURLParams) (Package, error) {
+	row := q.db.QueryRow(ctx, updatePackageImageURL, arg.Column1, arg.ImageUrl)
+	var i Package
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Description,
+		&i.DurationMinutes,
+		&i.Price,
+		&i.Discount,
+		&i.Offers,
+		&i.ImageUrl,
+		&i.IsActive,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}

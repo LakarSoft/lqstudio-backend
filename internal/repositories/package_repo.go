@@ -127,6 +127,21 @@ func (r *PackageRepository) ToggleActive(ctx context.Context, id string) (*model
 	return r.toModel(pkg)
 }
 
+// UpdateImageURL updates the image URL of a package
+func (r *PackageRepository) UpdateImageURL(ctx context.Context, id string, imageURL string) (*models.Package, error) {
+	params := sqlc.UpdatePackageImageURLParams{
+		Column1:  id,
+		ImageUrl: StringPtr(imageURL),
+	}
+
+	updated, err := r.queries.UpdatePackageImageURL(ctx, params)
+	if err != nil {
+		return nil, err
+	}
+
+	return r.toModel(updated)
+}
+
 // Helper methods
 func (r *PackageRepository) toModel(row sqlc.Package) (*models.Package, error) {
 	// Convert JSONB offers to []string

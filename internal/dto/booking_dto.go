@@ -109,13 +109,44 @@ type UpdateBookingStatusResponse struct {
 	EmailError            string           `json:"emailError,omitempty"`
 }
 
-// BookingFilters for admin booking list with pagination
+// BookingFilters for admin booking list with filtering, sorting, and pagination
 type BookingFilters struct {
-	Status string `query:"status"` // Filter by status
-	Page   int    `query:"page"`   // Page number (default: 1)
-	Limit  int    `query:"limit"`  // Items per page (default: 20)
-	SortBy string `query:"sortBy"` // Sort field (default: createdAt)
-	Order  string `query:"order"`  // Sort order: asc, desc (default: desc)
+	Status    string `query:"status"`    // Filter by status (PENDING, APPROVED, REJECTED, COMPLETED)
+	Email     string `query:"email"`     // Filter by customer email (partial match)
+	PackageID string `query:"packageId"` // Filter by package ID
+	ThemeID   string `query:"themeId"`   // Filter by theme (joins booking_slots)
+	SlotDate  string `query:"slotDate"`  // Filter by slot date (YYYY-MM-DD)
+	DateFrom  string `query:"dateFrom"`  // Bookings created from this date (YYYY-MM-DD)
+	DateTo    string `query:"dateTo"`    // Bookings created up to this date (YYYY-MM-DD)
+	Search    string `query:"search"`    // Search customer name, email, or phone
+	SortBy    string `query:"sortBy"`    // Sort field: createdAt, updatedAt, totalPrice, status (default: createdAt)
+	Order     string `query:"order"`     // Sort order: asc, desc (default: desc)
+	Page      int    `query:"page"`      // Page number (default: 1)
+	Limit     int    `query:"limit"`     // Items per page (default: 20)
+}
+
+// Defaults sets default values for unset filter fields
+func (f *BookingFilters) Defaults() {
+	if f.Page <= 0 {
+		f.Page = 1
+	}
+	if f.Limit <= 0 {
+		f.Limit = 20
+	}
+	if f.Limit > 100 {
+		f.Limit = 100
+	}
+	if f.SortBy == "" {
+		f.SortBy = "createdAt"
+	}
+	if f.Order == "" {
+		f.Order = "desc"
+	}
+}
+
+// Offset calculates the SQL OFFSET from page and limit
+func (f *BookingFilters) Offset() int {
+	return (f.Page - 1) * f.Limit
 }
 
 // PaginatedBookingsResponse wraps booking list with pagination metadata

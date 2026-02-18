@@ -65,7 +65,7 @@ type EmailConfig struct {
 type UploadConfig struct {
 	MaxFileSize  int64    // Max file size in bytes
 	AllowedTypes []string // Allowed MIME types
-	StoragePath  string   // Where to save uploaded files
+	StoragePath  string   // Base upload directory (e.g., ./uploads)
 }
 
 // Load loads configuration from environment variables
@@ -89,7 +89,7 @@ func Load() (*Config, error) {
 	// Upload configuration
 	maxFileSize := int64(getEnvInt("UPLOAD_MAX_FILE_SIZE", 5242880)) // Default 5MB
 	allowedTypes := strings.Split(getEnv("UPLOAD_ALLOWED_TYPES", "image/jpeg,image/png,image/jpg"), ",")
-	storagePath := getEnv("UPLOAD_STORAGE_PATH", "./uploads/payment-screenshots")
+	storagePath := getEnv("UPLOAD_STORAGE_PATH", "./uploads")
 
 	// Parse CORS origins and trim whitespace
 	corsOriginsRaw := strings.Split(getEnv("CORS_ALLOWED_ORIGINS", "*"), ",")
