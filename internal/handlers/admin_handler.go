@@ -697,8 +697,8 @@ func (h *AdminHandler) ListBookings(c echo.Context) error {
 	if statusParam != "" {
 		// Validate status value
 		status := models.BookingStatus(statusParam)
-		if status != "PENDING" && status != "APPROVED" && status != "REJECTED" {
-			return echo.NewHTTPError(http.StatusBadRequest, "invalid status parameter. must be PENDING, APPROVED, or REJECTED")
+		if status != "PENDING" && status != "APPROVED" && status != "REJECTED" && status != "COMPLETED" {
+			return echo.NewHTTPError(http.StatusBadRequest, "invalid status parameter. must be PENDING, APPROVED, REJECTED, or COMPLETED")
 		}
 		statusFilter = &status
 	}
@@ -788,7 +788,7 @@ func (h *AdminHandler) UpdateBookingStatus(c echo.Context) error {
 
 	// Build response message based on email notification status
 	message := "Booking status updated successfully"
-	if req.Status == "APPROVED" || req.Status == "REJECTED" {
+	if req.Status == "APPROVED" || req.Status == "REJECTED" || req.Status == "COMPLETED" {
 		if response.EmailNotificationSent {
 			message = "Booking status updated successfully and customer has been notified via email"
 		} else if response.EmailError != "" {

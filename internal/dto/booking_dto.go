@@ -49,7 +49,7 @@ type BookingResponse struct {
 	Slots                []SlotResponse      `json:"slots"`
 	Addons               []AddonItemResponse `json:"addons,omitempty"`
 	Customer             CustomerInfo        `json:"customer"`
-	Status               string              `json:"status"` // PENDING | APPROVED | REJECTED
+	Status               string              `json:"status"` // PENDING | APPROVED | REJECTED | COMPLETED
 	TotalPrice           float64             `json:"totalPrice"`
 	PaymentScreenshotURL string              `json:"paymentScreenshotUrl,omitempty"`
 	CreatedAt            string              `json:"createdAt"` // ISO 8601 datetime
@@ -97,7 +97,7 @@ type AvailableSlotInfo struct {
 // UpdateBookingStatusRequest for admin status updates
 // Matches the frontend expectations with camelCase JSON tags
 type UpdateBookingStatusRequest struct {
-	Status     string `json:"status" validate:"required,oneof=PENDING APPROVED REJECTED"`
+	Status     string `json:"status" validate:"required,oneof=PENDING APPROVED REJECTED COMPLETED"`
 	AdminNotes string `json:"adminNotes,omitempty"`
 }
 

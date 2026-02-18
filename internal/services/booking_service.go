@@ -256,8 +256,9 @@ func (s *BookingService) UpdateBookingStatus(ctx context.Context, bookingID stri
 	status := models.BookingStatus(req.Status)
 	if status != models.BookingStatusPending &&
 		status != models.BookingStatusApproved &&
-		status != models.BookingStatusRejected {
-		return nil, errors.NewValidationError("Invalid booking status. Must be PENDING, APPROVED, or REJECTED")
+		status != models.BookingStatusRejected &&
+		status != models.BookingStatusCompleted {
+		return nil, errors.NewValidationError("Invalid booking status. Must be PENDING, APPROVED, REJECTED, or COMPLETED")
 	}
 
 	// Check booking exists
@@ -267,6 +268,11 @@ func (s *BookingService) UpdateBookingStatus(ctx context.Context, bookingID stri
 			return nil, errors.NewBookingNotFoundError(bookingID)
 		}
 		return nil, errors.NewDatabaseError("get booking", err)
+	}
+
+	// Validate status transitions: only APPROVED bookings can be marked COMPLETED
+	if status == models.BookingStatusCompleted && booking.Status != models.BookingStatusApproved {
+		return nil, errors.NewValidationError("Only approved bookings can be marked as completed")
 	}
 
 	// Update status
