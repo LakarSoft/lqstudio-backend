@@ -3,11 +3,13 @@ package handlers
 import (
 	"fmt"
 	"net/http"
-	"strconv"
+	"strings"
 
+	"lqstudio-backend/internal/config"
 	"lqstudio-backend/internal/dto"
-	"lqstudio-backend/internal/models"
 	"lqstudio-backend/internal/services"
+	apperrors "lqstudio-backend/pkg/errors"
+	"lqstudio-backend/pkg/upload"
 
 	"github.com/labstack/echo/v4"
 )
@@ -17,6 +19,7 @@ type AdminHandler struct {
 	themeService   *services.ThemeService
 	addonService   *services.AddonService
 	bookingService *services.BookingService
+	uploadConfig   *config.UploadConfig
 }
 
 func NewAdminHandler(
@@ -24,12 +27,14 @@ func NewAdminHandler(
 	themeService *services.ThemeService,
 	addonService *services.AddonService,
 	bookingService *services.BookingService,
+	uploadConfig *config.UploadConfig,
 ) *AdminHandler {
 	return &AdminHandler{
 		packageService: packageService,
 		themeService:   themeService,
 		addonService:   addonService,
 		bookingService: bookingService,
+		uploadConfig:   uploadConfig,
 	}
 }
 
@@ -276,6 +281,70 @@ func (h *AdminHandler) TogglePackageActive(c echo.Context) error {
 	return SendOK(c, pkg, "Package status toggled successfully")
 }
 
+// UploadPackageImage godoc
+// @Summary Upload package image (Admin)
+// @Description Upload an image for a package (admin only)
+// @Tags admin-packages
+// @Accept multipart/form-data
+// @Produce json
+// @Security BearerAuth
+// @Param Authorization header string true "Bearer token"
+// @Param id path string true "Package ID"
+// @Param file formData file true "Package image"
+// @Success 200 {object} dto.ApiResponse{data=dto.PackageResponse}
+// @Failure 400 {object} dto.ApiResponse
+// @Failure 401 {object} dto.ApiResponse
+// @Failure 404 {object} dto.ApiResponse
+// @Failure 500 {object} dto.ApiResponse
+// @Router /api/admin/packages/{id}/image [post]
+func (h *AdminHandler) UploadPackageImage(c echo.Context) error {
+	id := c.Param("id")
+	if id == "" {
+		appErr := apperrors.NewBadRequestError("Package ID is required")
+		return c.JSON(appErr.StatusCode, dto.NewErrorResponseWithCode(appErr.Message, appErr.Code))
+	}
+
+	fileHeader, err := c.FormFile("file")
+	if err != nil {
+		appErr := apperrors.NewBadRequestError("File is required")
+		return c.JSON(appErr.StatusCode, dto.NewErrorResponseWithCode(appErr.Message, appErr.Code))
+	}
+
+	if err := upload.ValidateFile(fileHeader, h.uploadConfig.MaxFileSize, h.uploadConfig.AllowedTypes); err != nil {
+		if strings.Contains(err.Error(), "exceeds") {
+			appErr := apperrors.NewFileTooLargeError(h.uploadConfig.MaxFileSize)
+			return c.JSON(appErr.StatusCode, dto.NewErrorResponseWithCode(appErr.Message, appErr.Code))
+		}
+		appErr := apperrors.NewInvalidFileTypeError(h.uploadConfig.AllowedTypes)
+		return c.JSON(appErr.StatusCode, dto.NewErrorResponseWithCode(appErr.Message, appErr.Code))
+	}
+
+	file, err := fileHeader.Open()
+	if err != nil {
+		appErr := apperrors.NewUploadFailedError(err)
+		return c.JSON(appErr.StatusCode, dto.NewErrorResponseWithCode(appErr.Message, appErr.Code))
+	}
+	defer file.Close()
+
+	uniqueFilename := upload.GenerateUniqueFilename(fileHeader.Filename, "package")
+	urlPath, err := upload.SaveFile(file, uniqueFilename, h.uploadConfig.StoragePath, "packages")
+	if err != nil {
+		appErr := apperrors.NewUploadFailedError(err)
+		return c.JSON(appErr.StatusCode, dto.NewErrorResponseWithCode(appErr.Message, appErr.Code))
+	}
+
+	pkg, err := h.packageService.UpdateImageURL(c.Request().Context(), id, urlPath)
+	if err != nil {
+		if appErr, ok := err.(*apperrors.AppError); ok {
+			return c.JSON(appErr.StatusCode, dto.NewErrorResponseWithCode(appErr.Message, appErr.Code))
+		}
+		appErr := apperrors.NewInternalError("Failed to update package image", err)
+		return c.JSON(appErr.StatusCode, dto.NewErrorResponseWithCode(appErr.Message, appErr.Code))
+	}
+
+	return SendOK(c, pkg, "Package image uploaded successfully")
+}
+
 // ================================================================================
 // Theme Management Handlers (Admin)
 // ================================================================================
@@ -459,6 +528,70 @@ func (h *AdminHandler) ToggleThemeActive(c echo.Context) error {
 	}
 
 	return SendOK(c, theme, "Theme retrieved successfully")
+}
+
+// UploadThemeImage godoc
+// @Summary Upload theme image (Admin)
+// @Description Upload an image for a theme (admin only)
+// @Tags admin-themes
+// @Accept multipart/form-data
+// @Produce json
+// @Security BearerAuth
+// @Param Authorization header string true "Bearer token"
+// @Param id path string true "Theme ID"
+// @Param file formData file true "Theme image"
+// @Success 200 {object} dto.ApiResponse{data=dto.ThemeResponse}
+// @Failure 400 {object} dto.ApiResponse
+// @Failure 401 {object} dto.ApiResponse
+// @Failure 404 {object} dto.ApiResponse
+// @Failure 500 {object} dto.ApiResponse
+// @Router /api/admin/themes/{id}/image [post]
+func (h *AdminHandler) UploadThemeImage(c echo.Context) error {
+	id := c.Param("id")
+	if id == "" {
+		appErr := apperrors.NewBadRequestError("Theme ID is required")
+		return c.JSON(appErr.StatusCode, dto.NewErrorResponseWithCode(appErr.Message, appErr.Code))
+	}
+
+	fileHeader, err := c.FormFile("file")
+	if err != nil {
+		appErr := apperrors.NewBadRequestError("File is required")
+		return c.JSON(appErr.StatusCode, dto.NewErrorResponseWithCode(appErr.Message, appErr.Code))
+	}
+
+	if err := upload.ValidateFile(fileHeader, h.uploadConfig.MaxFileSize, h.uploadConfig.AllowedTypes); err != nil {
+		if strings.Contains(err.Error(), "exceeds") {
+			appErr := apperrors.NewFileTooLargeError(h.uploadConfig.MaxFileSize)
+			return c.JSON(appErr.StatusCode, dto.NewErrorResponseWithCode(appErr.Message, appErr.Code))
+		}
+		appErr := apperrors.NewInvalidFileTypeError(h.uploadConfig.AllowedTypes)
+		return c.JSON(appErr.StatusCode, dto.NewErrorResponseWithCode(appErr.Message, appErr.Code))
+	}
+
+	file, err := fileHeader.Open()
+	if err != nil {
+		appErr := apperrors.NewUploadFailedError(err)
+		return c.JSON(appErr.StatusCode, dto.NewErrorResponseWithCode(appErr.Message, appErr.Code))
+	}
+	defer file.Close()
+
+	uniqueFilename := upload.GenerateUniqueFilename(fileHeader.Filename, "theme")
+	urlPath, err := upload.SaveFile(file, uniqueFilename, h.uploadConfig.StoragePath, "themes")
+	if err != nil {
+		appErr := apperrors.NewUploadFailedError(err)
+		return c.JSON(appErr.StatusCode, dto.NewErrorResponseWithCode(appErr.Message, appErr.Code))
+	}
+
+	theme, err := h.themeService.UpdateImageURL(c.Request().Context(), id, urlPath)
+	if err != nil {
+		if appErr, ok := err.(*apperrors.AppError); ok {
+			return c.JSON(appErr.StatusCode, dto.NewErrorResponseWithCode(appErr.Message, appErr.Code))
+		}
+		appErr := apperrors.NewInternalError("Failed to update theme image", err)
+		return c.JSON(appErr.StatusCode, dto.NewErrorResponseWithCode(appErr.Message, appErr.Code))
+	}
+
+	return SendOK(c, theme, "Theme image uploaded successfully")
 }
 
 // ================================================================================
@@ -652,68 +785,59 @@ func (h *AdminHandler) ToggleAddonActive(c echo.Context) error {
 
 // ListBookings godoc
 // @Summary List all bookings (Admin)
-// @Description Get list of all bookings with optional filters and pagination (admin only)
+// @Description Get list of all bookings with filters, search, sorting, and pagination (admin only)
 // @Tags admin-bookings
 // @Accept json
 // @Produce json
 // @Security BearerAuth
 // @Param Authorization header string true "Bearer token"
-// @Param status query string false "Filter by status" Enums(PENDING, APPROVED, REJECTED)
-// @Param email query string false "Filter by customer email"
-// @Param limit query int false "Limit results" default(20)
-// @Param offset query int false "Offset for pagination" default(0)
-// @Success 200 {object} dto.ApiResponse{data=[]dto.BookingResponse}
+// @Param status query string false "Filter by status" Enums(PENDING, APPROVED, REJECTED, COMPLETED)
+// @Param email query string false "Filter by customer email (partial match)"
+// @Param packageId query string false "Filter by package ID"
+// @Param themeId query string false "Filter by theme ID"
+// @Param slotDate query string false "Filter by slot date (YYYY-MM-DD)"
+// @Param dateFrom query string false "Filter bookings created from this date (YYYY-MM-DD)"
+// @Param dateTo query string false "Filter bookings created up to this date (YYYY-MM-DD)"
+// @Param search query string false "Search customer name, email, or phone"
+// @Param sortBy query string false "Sort field" Enums(createdAt, updatedAt, totalPrice, status) default(createdAt)
+// @Param order query string false "Sort order" Enums(asc, desc) default(desc)
+// @Param page query int false "Page number" default(1)
+// @Param limit query int false "Items per page" default(20)
+// @Success 200 {object} dto.ApiResponse{data=dto.PaginatedBookingsResponse}
 // @Failure 400 {object} dto.ApiResponse
 // @Failure 401 {object} dto.ApiResponse
 // @Failure 500 {object} dto.ApiResponse
 // @Router /api/admin/bookings [get]
 func (h *AdminHandler) ListBookings(c echo.Context) error {
-	// Parse query parameters
-	statusParam := c.QueryParam("status")
-	emailParam := c.QueryParam("email")
-	limitParam := c.QueryParam("limit")
-	offsetParam := c.QueryParam("offset")
+	var filters dto.BookingFilters
+	if err := c.Bind(&filters); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid query parameters")
+	}
 
-	// Default pagination values
-	limit := int32(20)
-	offset := int32(0)
-
-	if limitParam != "" {
-		if l, err := strconv.ParseInt(limitParam, 10, 32); err == nil {
-			limit = int32(l)
+	if filters.Status != "" {
+		valid := map[string]bool{"PENDING": true, "APPROVED": true, "REJECTED": true, "COMPLETED": true}
+		if !valid[filters.Status] {
+			return echo.NewHTTPError(http.StatusBadRequest, "invalid status parameter. must be PENDING, APPROVED, REJECTED, or COMPLETED")
 		}
 	}
 
-	if offsetParam != "" {
-		if o, err := strconv.ParseInt(offsetParam, 10, 32); err == nil {
-			offset = int32(o)
+	if filters.SortBy != "" {
+		valid := map[string]bool{"createdAt": true, "updatedAt": true, "totalPrice": true, "status": true}
+		if !valid[filters.SortBy] {
+			return echo.NewHTTPError(http.StatusBadRequest, "invalid sortBy parameter. must be createdAt, updatedAt, totalPrice, or status")
 		}
 	}
 
-	// Prepare filters
-	var statusFilter *models.BookingStatus
-	var emailFilter *string
-
-	if statusParam != "" {
-		// Validate status value
-		status := models.BookingStatus(statusParam)
-		if status != "PENDING" && status != "APPROVED" && status != "REJECTED" {
-			return echo.NewHTTPError(http.StatusBadRequest, "invalid status parameter. must be PENDING, APPROVED, or REJECTED")
-		}
-		statusFilter = &status
+	if filters.Order != "" && filters.Order != "asc" && filters.Order != "desc" {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid order parameter. must be asc or desc")
 	}
 
-	if emailParam != "" {
-		emailFilter = &emailParam
-	}
-
-	// Get bookings
-	bookings, err := h.bookingService.ListBookings(c.Request().Context(), limit, offset, statusFilter, emailFilter)
+	result, err := h.bookingService.ListBookings(c.Request().Context(), &filters)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
 	}
 
-	return SendOK(c, bookings, "Bookings retrieved successfully")
+	return SendOK(c, result, "Bookings retrieved successfully")
 }
 
 // GetBooking godoc

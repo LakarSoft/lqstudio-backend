@@ -106,6 +106,7 @@ func (r *Router) Setup() *echo.Echo {
 	admin.PUT("/packages/:id", r.adminHandler.UpdatePackage)
 	admin.DELETE("/packages/:id", r.adminHandler.DeletePackage)
 	admin.PATCH("/packages/:id/toggle-active", r.adminHandler.TogglePackageActive)
+	admin.POST("/packages/:id/image", r.adminHandler.UploadPackageImage)
 
 	// Admin - Theme Management
 	admin.GET("/themes", r.adminHandler.GetAllThemes)
@@ -114,6 +115,7 @@ func (r *Router) Setup() *echo.Echo {
 	admin.PUT("/themes/:id", r.adminHandler.UpdateTheme)
 	admin.DELETE("/themes/:id", r.adminHandler.DeleteTheme)
 	admin.PATCH("/themes/:id/toggle-active", r.adminHandler.ToggleThemeActive)
+	admin.POST("/themes/:id/image", r.adminHandler.UploadThemeImage)
 
 	// Admin - Add-on Management
 	admin.GET("/addons", r.adminHandler.GetAllAddons)

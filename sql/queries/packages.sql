@@ -42,3 +42,11 @@ SET is_active = NOT is_active,
     updated_at = NOW()
 WHERE id = $1::varchar
 RETURNING *;
+
+-- name: UpdatePackageImageURL :one
+UPDATE packages
+SET
+    image_url = $2,
+    updated_at = NOW()
+WHERE id = $1::varchar
+RETURNING *;

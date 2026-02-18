@@ -98,6 +98,21 @@ func (r *ThemeRepository) ToggleActive(ctx context.Context, id string) (*models.
 	return r.toModel(result), nil
 }
 
+// UpdateImageURL updates the image URL of a theme
+func (r *ThemeRepository) UpdateImageURL(ctx context.Context, id string, imageURL string) (*models.Theme, error) {
+	params := sqlc.UpdateThemeImageURLParams{
+		Column1:  id,
+		ImageUrl: imageURL,
+	}
+
+	updated, err := r.queries.UpdateThemeImageURL(ctx, params)
+	if err != nil {
+		return nil, err
+	}
+
+	return r.toModel(updated), nil
+}
+
 // Helper methods
 func (r *ThemeRepository) toModel(row sqlc.Theme) *models.Theme {
 	return &models.Theme{

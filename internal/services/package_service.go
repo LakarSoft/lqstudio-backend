@@ -102,3 +102,13 @@ func (s *PackageService) ToggleActive(ctx context.Context, id string) (*dto.Pack
 
 	return dto.ToPackageResponse(pkg), nil
 }
+
+// UpdateImageURL updates the image URL of a package (admin)
+func (s *PackageService) UpdateImageURL(ctx context.Context, id string, imageURL string) (*dto.PackageResponse, error) {
+	pkg, err := s.packageRepo.UpdateImageURL(ctx, id, imageURL)
+	if err != nil {
+		return nil, err
+	}
+
+	return dto.ToPackageResponse(pkg), nil
+}

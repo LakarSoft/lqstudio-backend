@@ -35,9 +35,10 @@ type Booking struct {
 type BookingStatus string
 
 const (
-	BookingStatusPending  BookingStatus = "PENDING"
-	BookingStatusApproved BookingStatus = "APPROVED"
-	BookingStatusRejected BookingStatus = "REJECTED"
+	BookingStatusPending   BookingStatus = "PENDING"
+	BookingStatusApproved  BookingStatus = "APPROVED"
+	BookingStatusRejected  BookingStatus = "REJECTED"
+	BookingStatusCompleted BookingStatus = "COMPLETED"
 )
 
 // BookingSlot represents a single 20-minute theme slot

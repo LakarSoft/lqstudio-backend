@@ -13,15 +13,17 @@ import (
 	"time"
 )
 
-// SaveFile saves an uploaded file to the storage path and returns the URL path
-func SaveFile(file multipart.File, filename string, storagePath string) (string, error) {
+// SaveFile saves an uploaded file to the storage path and returns the URL path.
+// subDir is the subdirectory under storagePath (e.g., "payment-screenshots", "packages", "themes").
+func SaveFile(file multipart.File, filename string, storagePath string, subDir string) (string, error) {
 	// Ensure storage directory exists
-	if err := os.MkdirAll(storagePath, 0755); err != nil {
+	fullStoragePath := filepath.Join(storagePath, subDir)
+	if err := os.MkdirAll(fullStoragePath, 0755); err != nil {
 		return "", fmt.Errorf("failed to create storage directory: %w", err)
 	}
 
 	// Build full file path
-	fullPath := filepath.Join(storagePath, filename)
+	fullPath := filepath.Join(fullStoragePath, filename)
 
 	// Create destination file
 	dst, err := os.Create(fullPath)
@@ -35,9 +37,8 @@ func SaveFile(file multipart.File, filename string, storagePath string) (string,
 		return "", fmt.Errorf("failed to write file: %w", err)
 	}
 
-	// Return public URL path (e.g., /uploads/payment-screenshots/filename.jpg)
-	urlPath := filepath.Join("/uploads", "payment-screenshots", filename)
-	// Convert Windows backslashes to forward slashes for URL
+	// Return public URL path (e.g., /uploads/packages/filename.jpg)
+	urlPath := filepath.Join("/uploads", subDir, filename)
 	urlPath = filepath.ToSlash(urlPath)
 
 	return urlPath, nil
@@ -88,8 +89,8 @@ func ValidateFile(fileHeader *multipart.FileHeader, maxSize int64, allowedTypes 
 	return nil
 }
 
-// GenerateUniqueFilename generates a unique filename with timestamp and random suffix
-func GenerateUniqueFilename(originalFilename string) string {
+// GenerateUniqueFilename generates a unique filename with the given prefix, timestamp, and random suffix.
+func GenerateUniqueFilename(originalFilename string, prefix string) string {
 	// Get file extension (sanitized)
 	ext := strings.ToLower(filepath.Ext(originalFilename))
 
@@ -106,8 +107,8 @@ func GenerateUniqueFilename(originalFilename string) string {
 	rand.Read(randomBytes)
 	randomHex := hex.EncodeToString(randomBytes)
 
-	// Format: payment_{timestamp}_{random}.ext
-	return fmt.Sprintf("payment_%d_%s%s", timestamp, randomHex, ext)
+	// Format: {prefix}_{timestamp}_{random}.ext
+	return fmt.Sprintf("%s_%d_%s%s", prefix, timestamp, randomHex, ext)
 }
 
 // SanitizeFilename removes potentially dangerous characters from filename

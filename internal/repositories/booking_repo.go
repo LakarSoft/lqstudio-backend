@@ -3,12 +3,15 @@ package repositories
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"lqstudio-backend/internal/database/sqlc"
+	"lqstudio-backend/internal/dto"
 	"lqstudio-backend/internal/models"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -218,6 +221,175 @@ func (r *BookingRepository) UpdatePaymentScreenshot(ctx context.Context, id stri
 // Count returns the total number of bookings
 func (r *BookingRepository) Count(ctx context.Context) (int64, error) {
 	return r.queries.CountBookings(ctx)
+}
+
+// ListWithFilters retrieves bookings with dynamic filtering, sorting, and pagination.
+// Uses raw pgxpool query because sqlc does not support dynamic ORDER BY or complex conditional WHERE.
+func (r *BookingRepository) ListWithFilters(ctx context.Context, filters *dto.BookingFilters) ([]*models.Booking, int, error) {
+	var conditions []string
+	var args []interface{}
+	argIdx := 1
+
+	if filters.Status != "" {
+		conditions = append(conditions, fmt.Sprintf("b.status = $%d", argIdx))
+		args = append(args, filters.Status)
+		argIdx++
+	}
+
+	if filters.Email != "" {
+		conditions = append(conditions, fmt.Sprintf("b.customer_email ILIKE $%d", argIdx))
+		args = append(args, "%"+filters.Email+"%")
+		argIdx++
+	}
+
+	if filters.PackageID != "" {
+		conditions = append(conditions, fmt.Sprintf("b.package_id = $%d", argIdx))
+		args = append(args, filters.PackageID)
+		argIdx++
+	}
+
+	if filters.Search != "" {
+		conditions = append(conditions, fmt.Sprintf("(b.customer_name ILIKE $%d OR b.customer_email ILIKE $%d OR b.customer_phone ILIKE $%d)", argIdx, argIdx, argIdx))
+		args = append(args, "%"+filters.Search+"%")
+		argIdx++
+	}
+
+	if filters.DateFrom != "" {
+		conditions = append(conditions, fmt.Sprintf("b.created_at >= $%d::timestamptz", argIdx))
+		args = append(args, filters.DateFrom+"T00:00:00Z")
+		argIdx++
+	}
+
+	if filters.DateTo != "" {
+		conditions = append(conditions, fmt.Sprintf("b.created_at < $%d::timestamptz", argIdx))
+		args = append(args, filters.DateTo+"T23:59:59Z")
+		argIdx++
+	}
+
+	needsSlotJoin := filters.ThemeID != "" || filters.SlotDate != ""
+
+	if filters.ThemeID != "" {
+		conditions = append(conditions, fmt.Sprintf("bs.theme_id = $%d", argIdx))
+		args = append(args, filters.ThemeID)
+		argIdx++
+	}
+
+	if filters.SlotDate != "" {
+		conditions = append(conditions, fmt.Sprintf("bs.date = $%d::date", argIdx))
+		args = append(args, filters.SlotDate)
+		argIdx++
+	}
+
+	whereClause := ""
+	if len(conditions) > 0 {
+		whereClause = "WHERE " + strings.Join(conditions, " AND ")
+	}
+
+	joinClause := ""
+	if needsSlotJoin {
+		joinClause = "LEFT JOIN booking_slots bs ON b.id = bs.booking_id"
+	}
+
+	// Map sort field to SQL column name (whitelist to prevent injection)
+	orderColumn := "b.created_at"
+	subOrderColumn := "created_at"
+	switch filters.SortBy {
+	case "createdAt":
+		orderColumn = "b.created_at"
+		subOrderColumn = "created_at"
+	case "updatedAt":
+		orderColumn = "b.updated_at"
+		subOrderColumn = "updated_at"
+	case "totalPrice":
+		orderColumn = "b.total_price"
+		subOrderColumn = "total_price"
+	case "status":
+		orderColumn = "b.status"
+		subOrderColumn = "status"
+	}
+
+	orderDir := "DESC"
+	if strings.ToLower(filters.Order) == "asc" {
+		orderDir = "ASC"
+	}
+
+	// Count distinct bookings (handles potential JOIN duplicates)
+	countQuery := fmt.Sprintf(
+		"SELECT COUNT(DISTINCT b.id) FROM bookings b %s %s",
+		joinClause, whereClause,
+	)
+
+	var total int
+	if err := r.pool.QueryRow(ctx, countQuery, args...).Scan(&total); err != nil {
+		return nil, 0, fmt.Errorf("failed to count bookings: %w", err)
+	}
+
+	// Data query: use DISTINCT ON when joining slots to avoid duplicate rows
+	const selectFields = `b.id, b.package_id, b.customer_name, b.customer_email, b.customer_phone,
+		b.customer_notes, b.payment_screenshot_url, b.status, b.total_price, b.admin_notes,
+		b.created_at, b.updated_at`
+
+	var dataQuery string
+	if needsSlotJoin {
+		// DISTINCT ON (b.id) deduplicate; wrap in subquery for correct outer ORDER BY
+		innerQuery := fmt.Sprintf(
+			"SELECT DISTINCT ON (b.id) %s FROM bookings b %s %s ORDER BY b.id, %s %s",
+			selectFields, joinClause, whereClause, orderColumn, orderDir,
+		)
+		dataQuery = fmt.Sprintf(
+			"SELECT * FROM (%s) sub ORDER BY %s %s LIMIT $%d OFFSET $%d",
+			innerQuery, subOrderColumn, orderDir, argIdx, argIdx+1,
+		)
+	} else {
+		dataQuery = fmt.Sprintf(
+			"SELECT %s FROM bookings b %s ORDER BY %s %s LIMIT $%d OFFSET $%d",
+			selectFields, whereClause, orderColumn, orderDir, argIdx, argIdx+1,
+		)
+	}
+	args = append(args, filters.Limit, filters.Offset())
+
+	rows, err := r.pool.Query(ctx, dataQuery, args...)
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to query bookings: %w", err)
+	}
+	defer rows.Close()
+
+	var bookings []*models.Booking
+	for rows.Next() {
+		var b models.Booking
+		var customerNotes, paymentURL, adminNotes *string
+		var status string
+		var totalPrice pgtype.Numeric
+		var createdAt, updatedAt pgtype.Timestamptz
+
+		if err := rows.Scan(
+			&b.ID, &b.PackageID, &b.CustomerName, &b.CustomerEmail, &b.CustomerPhone,
+			&customerNotes, &paymentURL, &status, &totalPrice, &adminNotes,
+			&createdAt, &updatedAt,
+		); err != nil {
+			return nil, 0, fmt.Errorf("failed to scan booking row: %w", err)
+		}
+
+		b.CustomerNotes = StringVal(customerNotes)
+		b.PaymentScreenshotURL = paymentURL
+		b.Status = models.BookingStatus(status)
+		b.TotalAmount = NumericToDecimal(totalPrice)
+		b.AdminNotes = StringVal(adminNotes)
+		b.CreatedAt = TimestamptzToTime(createdAt)
+		b.UpdatedAt = TimestamptzToTime(updatedAt)
+
+		bookings = append(bookings, &b)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, 0, fmt.Errorf("error iterating booking rows: %w", err)
+	}
+
+	if bookings == nil {
+		bookings = []*models.Booking{}
+	}
+
+	return bookings, total, nil
 }
 
 // =============================================================================

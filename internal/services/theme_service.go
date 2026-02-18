@@ -92,3 +92,13 @@ func (s *ThemeService) ToggleActive(ctx context.Context, id string) (*dto.ThemeR
 
 	return dto.ToThemeResponse(theme), nil
 }
+
+// UpdateImageURL updates the image URL of a theme (admin)
+func (s *ThemeService) UpdateImageURL(ctx context.Context, id string, imageURL string) (*dto.ThemeResponse, error) {
+	theme, err := s.themeRepo.UpdateImageURL(ctx, id, imageURL)
+	if err != nil {
+		return nil, err
+	}
+
+	return dto.ToThemeResponse(theme), nil
+}

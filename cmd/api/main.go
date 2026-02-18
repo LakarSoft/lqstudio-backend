@@ -144,7 +144,7 @@ func main() {
 	healthHandler := handlers.NewHealthHandler(dbConn)
 	availabilityHandler := handlers.NewAvailabilityHandler(bookingService)
 	bookingHandler := handlers.NewBookingHandler(bookingService, &cfg.Upload)
-	adminHandler := handlers.NewAdminHandler(packageSvc, themeSvc, addonSvc, bookingService)
+	adminHandler := handlers.NewAdminHandler(packageSvc, themeSvc, addonSvc, bookingService, &cfg.Upload)
 	authHandler := handlers.NewAuthHandler(userRepo, cfg, log)
 
 	// Setup router
