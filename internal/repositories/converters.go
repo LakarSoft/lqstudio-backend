@@ -114,7 +114,7 @@ func TimeToDate(t time.Time) pgtype.Date {
 // Time of Day Conversions
 // =============================================================================
 
-// TimeToString converts pgtype.Time to HH:MM string format
+// TimeToString converts pgtype.Time to 12-hour format string (e.g., "10:00 AM", "2:00 PM")
 func TimeToString(t pgtype.Time) string {
 	if !t.Valid {
 		return ""
@@ -124,16 +124,16 @@ func TimeToString(t pgtype.Time) string {
 	hours := t.Microseconds / (60 * 60 * 1000000)
 	minutes := (t.Microseconds % (60 * 60 * 1000000)) / (60 * 1000000)
 
-	return time.Date(0, 1, 1, int(hours), int(minutes), 0, 0, time.UTC).Format("15:04")
+	return time.Date(0, 1, 1, int(hours), int(minutes), 0, 0, time.UTC).Format("3:04 PM")
 }
 
-// StringToTime converts HH:MM string to pgtype.Time
+// StringToTime converts a 12-hour format string (e.g., "10:00 AM", "2:00 PM") to pgtype.Time
 func StringToTime(s string) (pgtype.Time, error) {
 	if s == "" {
 		return pgtype.Time{Valid: false}, nil
 	}
 
-	t, err := time.Parse("15:04", s)
+	t, err := time.Parse("3:04 PM", s)
 	if err != nil {
 		return pgtype.Time{Valid: false}, err
 	}

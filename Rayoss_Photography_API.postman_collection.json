@@ -458,6 +458,48 @@
 						"description": "Toggle package active/inactive status (admin only)"
 					},
 					"response": []
+				},
+				{
+					"name": "Upload Package Image",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{bearerToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "file",
+									"type": "file",
+									"src": [],
+									"description": "Package image file (JPG, PNG, JPEG). Max size: 5MB."
+								}
+							]
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/admin/packages/:id/image",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "admin", "packages", ":id", "image"],
+							"variable": [
+								{
+									"key": "id",
+									"value": "pkg-early-bird",
+									"description": "Package ID"
+								}
+							]
+						},
+						"description": "Upload an image for a package (admin only). Accepts JPG, JPEG, PNG. Max file size: 5MB. The image URL is saved to the package and served via /uploads/packages/<filename>."
+					},
+					"response": []
 				}
 			],
 			"description": "Admin endpoints for package management (requires authentication)"
@@ -652,6 +694,48 @@
 							]
 						},
 						"description": "Toggle theme active/inactive status (admin only)"
+					},
+					"response": []
+				},
+				{
+					"name": "Upload Theme Image",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{bearerToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "file",
+									"type": "file",
+									"src": [],
+									"description": "Theme image file (JPG, PNG, JPEG). Max size: 5MB."
+								}
+							]
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/admin/themes/:id/image",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "admin", "themes", ":id", "image"],
+							"variable": [
+								{
+									"key": "id",
+									"value": "theme-minimalist",
+									"description": "Theme ID"
+								}
+							]
+						},
+						"description": "Upload an image for a theme (admin only). Accepts JPG, JPEG, PNG. Max file size: 5MB. The image URL is saved to the theme and served via /uploads/themes/<filename>."
 					},
 					"response": []
 				}
@@ -873,35 +957,83 @@
 						"method": "GET",
 						"header": [],
 						"url": {
-							"raw": "{{baseUrl}}/api/admin/bookings?status=PENDING&limit=20&offset=0",
+							"raw": "{{baseUrl}}/api/admin/bookings?page=1&limit=20",
 							"host": ["{{baseUrl}}"],
 							"path": ["api", "admin", "bookings"],
 							"query": [
 								{
 									"key": "status",
 									"value": "PENDING",
-									"description": "Filter by status (PENDING, APPROVED, REJECTED)",
+									"description": "Filter by status: PENDING, APPROVED, REJECTED, COMPLETED",
 									"disabled": true
 								},
 								{
 									"key": "email",
 									"value": "customer@example.com",
-									"description": "Filter by customer email",
+									"description": "Filter by customer email (partial match)",
 									"disabled": true
+								},
+								{
+									"key": "packageId",
+									"value": "pkg-early-bird",
+									"description": "Filter by package ID",
+									"disabled": true
+								},
+								{
+									"key": "themeId",
+									"value": "theme-minimalist",
+									"description": "Filter by theme ID",
+									"disabled": true
+								},
+								{
+									"key": "slotDate",
+									"value": "2024-12-25",
+									"description": "Filter by exact slot date (YYYY-MM-DD)",
+									"disabled": true
+								},
+								{
+									"key": "dateFrom",
+									"value": "2024-12-01",
+									"description": "Filter bookings created from this date (YYYY-MM-DD)",
+									"disabled": true
+								},
+								{
+									"key": "dateTo",
+									"value": "2024-12-31",
+									"description": "Filter bookings created up to this date (YYYY-MM-DD)",
+									"disabled": true
+								},
+								{
+									"key": "search",
+									"value": "John",
+									"description": "Search by customer name, email, or phone",
+									"disabled": true
+								},
+								{
+									"key": "sortBy",
+									"value": "createdAt",
+									"description": "Sort field: createdAt (default), updatedAt, totalPrice, status",
+									"disabled": true
+								},
+								{
+									"key": "order",
+									"value": "desc",
+									"description": "Sort direction: desc (default) or asc",
+									"disabled": true
+								},
+								{
+									"key": "page",
+									"value": "1",
+									"description": "Page number (default: 1)"
 								},
 								{
 									"key": "limit",
 									"value": "20",
-									"description": "Limit results (default: 20)"
-								},
-								{
-									"key": "offset",
-									"value": "0",
-									"description": "Offset for pagination (default: 0)"
+									"description": "Results per page (default: 20, max: 100)"
 								}
 							]
 						},
-						"description": "Get list of all bookings with optional filters and pagination (admin only)"
+						"description": "Get paginated list of bookings with comprehensive filters (admin only). Supports filtering by status, email, packageId, themeId, slotDate, date range, and free-text search. Sort by createdAt, updatedAt, totalPrice, or status."
 					},
 					"response": []
 				},
@@ -972,7 +1104,7 @@
 								}
 							]
 						},
-						"description": "Update booking status (admin only). Status can be: PENDING, APPROVED, or REJECTED"
+						"description": "Update booking status (admin only). Allowed transitions:\n- PENDING → APPROVED\n- PENDING → REJECTED\n- APPROVED → COMPLETED\n\nStatus values: PENDING, APPROVED, REJECTED, COMPLETED"
 					},
 					"response": []
 				}

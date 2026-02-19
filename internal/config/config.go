@@ -18,6 +18,7 @@ type Config struct {
 	CORS     CORSConfig
 	Email    EmailConfig
 	Upload   UploadConfig
+	Studio   StudioConfig
 }
 
 type ServerConfig struct {
@@ -151,6 +152,7 @@ func Load() (*Config, error) {
 			AllowedTypes: allowedTypes,
 			StoragePath:  storagePath,
 		},
+		Studio: LoadStudioConfig(),
 	}, nil
 }
 
@@ -268,11 +270,11 @@ type StudioConfig struct {
 	WhatsAppNumber       string
 }
 
-// LoadConfig loads configuration from environment
-func LoadConfig() *StudioConfig {
-	return &StudioConfig{
-		OpenHour:             getEnvInt("STUDIO_OPEN_HOUR", 9),
-		CloseHour:            getEnvInt("STUDIO_CLOSE_HOUR", 17),
+// LoadStudioConfig loads studio business configuration from environment
+func LoadStudioConfig() StudioConfig {
+	return StudioConfig{
+		OpenHour:             getEnvInt("STUDIO_OPEN_HOUR", 10),
+		CloseHour:            getEnvInt("STUDIO_CLOSE_HOUR", 18),
 		SlotDurationMinutes:  getEnvInt("SLOT_DURATION_MINUTES", 20),
 		PaymentQRCodeURL:     getEnv("PAYMENT_QR_CODE_URL", ""),
 		PaymentBankName:      getEnv("PAYMENT_BANK_NAME", "Maybank"),
