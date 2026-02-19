@@ -22,4 +22,4 @@ COPY --from=build /app/migrations ./migrations
 # Set specific port just in case
 EXPOSE 8080
 
-CMD ["./main"]
+CMD ["sh", "-c", "mkdir -p /app/uploads/packages /app/uploads/themes /app/uploads/payment-screenshots && ./main"]
