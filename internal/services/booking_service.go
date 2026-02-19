@@ -27,6 +27,8 @@ type BookingService struct {
 	bookingRepo *repositories.BookingRepository
 	emailClient *email.Client
 	logger      *zap.Logger
+	openHour    int
+	closeHour   int
 }
 
 // NewBookingService creates a new booking service
@@ -37,6 +39,8 @@ func NewBookingService(
 	bookingRepo *repositories.BookingRepository,
 	emailClient *email.Client,
 	logger *zap.Logger,
+	openHour int,
+	closeHour int,
 ) *BookingService {
 	return &BookingService{
 		packageRepo: packageRepo,
@@ -45,6 +49,8 @@ func NewBookingService(
 		bookingRepo: bookingRepo,
 		emailClient: emailClient,
 		logger:      logger,
+		openHour:    openHour,
+		closeHour:   closeHour,
 	}
 }
 
@@ -216,48 +222,40 @@ func (s *BookingService) GetBookingByID(ctx context.Context, bookingID string) (
 	return dto.ToBookingResponse(booking), nil
 }
 
-// ListBookings lists bookings with optional filters and pagination
-func (s *BookingService) ListBookings(ctx context.Context, limit, offset int32, statusFilter *models.BookingStatus, emailFilter *string) ([]*dto.BookingResponse, error) {
-	var bookings []*models.Booking
-	var err error
+// ListBookings lists bookings with comprehensive filters, sorting, and pagination
+func (s *BookingService) ListBookings(ctx context.Context, filters *dto.BookingFilters) (*dto.PaginatedBookingsResponse, error) {
+	filters.Defaults()
 
-	// Apply filters
-	if statusFilter != nil {
-		bookings, err = s.bookingRepo.GetByStatus(ctx, *statusFilter)
-	} else if emailFilter != nil {
-		bookings, err = s.bookingRepo.GetByCustomerEmail(ctx, *emailFilter)
-	} else {
-		bookings, err = s.bookingRepo.ListAll(ctx, limit, offset)
-	}
-
+	bookings, total, err := s.bookingRepo.ListWithFilters(ctx, filters)
 	if err != nil {
 		return nil, errors.NewDatabaseError("list bookings", err)
 	}
 
-	// Apply manual pagination if using filtered results
-	if statusFilter != nil || emailFilter != nil {
-		start := int(offset)
-		end := start + int(limit)
-		if start > len(bookings) {
-			start = len(bookings)
-		}
-		if end > len(bookings) {
-			end = len(bookings)
-		}
-		bookings = bookings[start:end]
+	totalPages := total / filters.Limit
+	if total%filters.Limit != 0 {
+		totalPages++
 	}
 
-	return dto.ToBookingsResponse(bookings), nil
+	return &dto.PaginatedBookingsResponse{
+		Data: dto.ToBookingsResponse(bookings),
+		Pagination: dto.PaginationInfo{
+			Page:       filters.Page,
+			Limit:      filters.Limit,
+			Total:      total,
+			TotalPages: totalPages,
+		},
+	}, nil
 }
 
 // UpdateBookingStatus updates booking status and sends customer notification email
 func (s *BookingService) UpdateBookingStatus(ctx context.Context, bookingID string, req *dto.UpdateBookingStatusRequest) (*dto.UpdateBookingStatusResponse, error) {
-	// Validate status is one of: PENDING, APPROVED, REJECTED
+	// Validate status is one of: PENDING, APPROVED, REJECTED, COMPLETED
 	status := models.BookingStatus(req.Status)
 	if status != models.BookingStatusPending &&
 		status != models.BookingStatusApproved &&
-		status != models.BookingStatusRejected {
-		return nil, errors.NewValidationError("Invalid booking status. Must be PENDING, APPROVED, or REJECTED")
+		status != models.BookingStatusRejected &&
+		status != models.BookingStatusCompleted {
+		return nil, errors.NewValidationError("Invalid booking status. Must be PENDING, APPROVED, REJECTED, or COMPLETED")
 	}
 
 	// Check booking exists
@@ -267,6 +265,11 @@ func (s *BookingService) UpdateBookingStatus(ctx context.Context, bookingID stri
 			return nil, errors.NewBookingNotFoundError(bookingID)
 		}
 		return nil, errors.NewDatabaseError("get booking", err)
+	}
+
+	// Validate status transitions: only APPROVED bookings can be marked COMPLETED
+	if status == models.BookingStatusCompleted && booking.Status != models.BookingStatusApproved {
+		return nil, errors.NewValidationError("Only approved bookings can be marked as completed")
 	}
 
 	// Update status
@@ -412,8 +415,8 @@ func (s *BookingService) GetAvailability(ctx context.Context, req *dto.Availabil
 		return nil, errors.NewDatabaseError("get theme", err)
 	}
 
-	// Generate time slots from 10:00 to 18:00 in 20-minute intervals
-	allSlots := generateTimeSlots()
+	// Generate time slots based on configured studio hours
+	allSlots := generateTimeSlots(s.openHour, s.closeHour)
 
 	// Get booked slots for this theme on this date
 	bookedSlots, err := s.bookingRepo.GetBookedSlotsForThemeAndDate(ctx, req.ThemeID, req.Date)
@@ -455,7 +458,7 @@ func (s *BookingService) getAvailabilityForAllThemes(ctx context.Context, req *d
 
 	// If no active themes, all slots are unavailable
 	if len(activeThemes) == 0 {
-		allSlots := generateTimeSlots()
+		allSlots := generateTimeSlots(s.openHour, s.closeHour)
 		availabilitySlots := make([]dto.AvailableSlotInfo, len(allSlots))
 		for i, slotTime := range allSlots {
 			availabilitySlots[i] = dto.AvailableSlotInfo{
@@ -469,8 +472,8 @@ func (s *BookingService) getAvailabilityForAllThemes(ctx context.Context, req *d
 		}, nil
 	}
 
-	// Generate time slots from 10:00 to 18:00 in 20-minute intervals
-	allSlots := generateTimeSlots()
+	// Generate time slots based on configured studio hours
+	allSlots := generateTimeSlots(s.openHour, s.closeHour)
 
 	// Get all booked slots for all themes on this date
 	bookedSlots, err := s.bookingRepo.GetBookedSlotsForAllThemesAndDate(ctx, req.Date)
@@ -628,23 +631,21 @@ func generateBookingID() string {
 	return fmt.Sprintf("bkg-%d-%s", timestamp, randomHex)
 }
 
-// generateTimeSlots generates time slots from 10:00 to 18:00 in 20-minute intervals
-func generateTimeSlots() []string {
+// generateTimeSlots generates time slots in 20-minute intervals between openHour and closeHour.
+// Times are formatted in 12-hour format (e.g., "10:00 AM", "2:00 PM").
+func generateTimeSlots(openHour, closeHour int) []string {
 	slots := []string{}
-	hour := 10
+	hour := openHour
 	minute := 0
 
 	for {
-		// Stop at 18:00
-		if hour >= 18 {
+		if hour >= closeHour {
 			break
 		}
 
-		// Format time as HH:MM
-		timeStr := fmt.Sprintf("%02d:%02d", hour, minute)
-		slots = append(slots, timeStr)
+		t := time.Date(0, 1, 1, hour, minute, 0, 0, time.UTC)
+		slots = append(slots, t.Format("3:04 PM"))
 
-		// Add 20 minutes
 		minute += 20
 		if minute >= 60 {
 			minute = 0

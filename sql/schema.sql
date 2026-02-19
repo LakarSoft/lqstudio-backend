@@ -69,7 +69,7 @@ CREATE TABLE bookings (
     admin_notes TEXT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    CONSTRAINT valid_booking_status CHECK (status IN ('PENDING', 'APPROVED', 'REJECTED'))
+    CONSTRAINT valid_booking_status CHECK (status IN ('PENDING', 'APPROVED', 'REJECTED', 'COMPLETED'))
 );
 CREATE INDEX idx_bookings_status ON bookings(status);
 CREATE INDEX idx_bookings_created_at ON bookings(created_at DESC);

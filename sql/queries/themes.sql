@@ -39,3 +39,11 @@ SET is_active = NOT is_active,
     updated_at = NOW()
 WHERE id = $1::varchar
 RETURNING *;
+
+-- name: UpdateThemeImageURL :one
+UPDATE themes
+SET
+    image_url = $2,
+    updated_at = NOW()
+WHERE id = $1::varchar
+RETURNING *;

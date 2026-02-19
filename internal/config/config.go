@@ -18,6 +18,7 @@ type Config struct {
 	CORS     CORSConfig
 	Email    EmailConfig
 	Upload   UploadConfig
+	Studio   StudioConfig
 }
 
 type ServerConfig struct {
@@ -65,7 +66,7 @@ type EmailConfig struct {
 type UploadConfig struct {
 	MaxFileSize  int64    // Max file size in bytes
 	AllowedTypes []string // Allowed MIME types
-	StoragePath  string   // Where to save uploaded files
+	StoragePath  string   // Base upload directory (e.g., ./uploads)
 }
 
 // Load loads configuration from environment variables
@@ -89,7 +90,7 @@ func Load() (*Config, error) {
 	// Upload configuration
 	maxFileSize := int64(getEnvInt("UPLOAD_MAX_FILE_SIZE", 5242880)) // Default 5MB
 	allowedTypes := strings.Split(getEnv("UPLOAD_ALLOWED_TYPES", "image/jpeg,image/png,image/jpg"), ",")
-	storagePath := getEnv("UPLOAD_STORAGE_PATH", "./uploads/payment-screenshots")
+	storagePath := getEnv("UPLOAD_STORAGE_PATH", "./uploads")
 
 	// Parse CORS origins and trim whitespace
 	corsOriginsRaw := strings.Split(getEnv("CORS_ALLOWED_ORIGINS", "*"), ",")
@@ -151,6 +152,7 @@ func Load() (*Config, error) {
 			AllowedTypes: allowedTypes,
 			StoragePath:  storagePath,
 		},
+		Studio: LoadStudioConfig(),
 	}, nil
 }
 
@@ -268,11 +270,11 @@ type StudioConfig struct {
 	WhatsAppNumber       string
 }
 
-// LoadConfig loads configuration from environment
-func LoadConfig() *StudioConfig {
-	return &StudioConfig{
-		OpenHour:             getEnvInt("STUDIO_OPEN_HOUR", 9),
-		CloseHour:            getEnvInt("STUDIO_CLOSE_HOUR", 17),
+// LoadStudioConfig loads studio business configuration from environment
+func LoadStudioConfig() StudioConfig {
+	return StudioConfig{
+		OpenHour:             getEnvInt("STUDIO_OPEN_HOUR", 10),
+		CloseHour:            getEnvInt("STUDIO_CLOSE_HOUR", 18),
 		SlotDurationMinutes:  getEnvInt("SLOT_DURATION_MINUTES", 20),
 		PaymentQRCodeURL:     getEnv("PAYMENT_QR_CODE_URL", ""),
 		PaymentBankName:      getEnv("PAYMENT_BANK_NAME", "Maybank"),

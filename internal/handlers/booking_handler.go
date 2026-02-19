@@ -152,10 +152,10 @@ func (h *BookingHandler) UploadPaymentScreenshot(c echo.Context) error {
 	defer file.Close()
 
 	// Generate unique filename
-	uniqueFilename := upload.GenerateUniqueFilename(fileHeader.Filename)
+	uniqueFilename := upload.GenerateUniqueFilename(fileHeader.Filename, "payment")
 
 	// Save file and get URL path
-	urlPath, err := upload.SaveFile(file, uniqueFilename, h.uploadConfig.StoragePath)
+	urlPath, err := upload.SaveFile(file, uniqueFilename, h.uploadConfig.StoragePath, "payment-screenshots")
 	if err != nil {
 		appErr := errors.NewUploadFailedError(err)
 		return c.JSON(appErr.StatusCode, dto.NewErrorResponseWithCode(appErr.Message, appErr.Code))

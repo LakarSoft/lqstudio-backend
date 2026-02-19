@@ -516,7 +516,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Get list of all bookings with optional filters and pagination (admin only)",
+                "description": "Get list of all bookings with filters, search, sorting, and pagination (admin only)",
                 "consumes": [
                     "application/json"
                 ],
@@ -539,7 +539,8 @@ const docTemplate = `{
                         "enum": [
                             "PENDING",
                             "APPROVED",
-                            "REJECTED"
+                            "REJECTED",
+                            "COMPLETED"
                         ],
                         "type": "string",
                         "description": "Filter by status",
@@ -548,22 +549,82 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "Filter by customer email",
+                        "description": "Filter by customer email (partial match)",
                         "name": "email",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by package ID",
+                        "name": "packageId",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by theme ID",
+                        "name": "themeId",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by slot date (YYYY-MM-DD)",
+                        "name": "slotDate",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter bookings created from this date (YYYY-MM-DD)",
+                        "name": "dateFrom",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter bookings created up to this date (YYYY-MM-DD)",
+                        "name": "dateTo",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Search customer name, email, or phone",
+                        "name": "search",
+                        "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "createdAt",
+                            "updatedAt",
+                            "totalPrice",
+                            "status"
+                        ],
+                        "type": "string",
+                        "default": "createdAt",
+                        "description": "Sort field",
+                        "name": "sortBy",
+                        "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "asc",
+                            "desc"
+                        ],
+                        "type": "string",
+                        "default": "desc",
+                        "description": "Sort order",
+                        "name": "order",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 1,
+                        "description": "Page number",
+                        "name": "page",
                         "in": "query"
                     },
                     {
                         "type": "integer",
                         "default": 20,
-                        "description": "Limit results",
+                        "description": "Items per page",
                         "name": "limit",
-                        "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "default": 0,
-                        "description": "Offset for pagination",
-                        "name": "offset",
                         "in": "query"
                     }
                 ],
@@ -579,10 +640,7 @@ const docTemplate = `{
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "type": "array",
-                                            "items": {
-                                                "$ref": "#/definitions/dto.BookingResponse"
-                                            }
+                                            "$ref": "#/definitions/dto.PaginatedBookingsResponse"
                                         }
                                     }
                                 }
@@ -697,7 +755,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Update booking status (admin only)",
+                "description": "Update booking status and send customer notification email (admin only)",
                 "consumes": [
                     "application/json"
                 ],
@@ -745,7 +803,7 @@ const docTemplate = `{
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/dto.BookingResponse"
+                                            "$ref": "#/definitions/dto.UpdateBookingStatusResponse"
                                         }
                                     }
                                 }
@@ -1205,6 +1263,93 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/admin/packages/{id}/image": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Upload an image for a package (admin only)",
+                "consumes": [
+                    "multipart/form-data"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admin-packages"
+                ],
+                "summary": "Upload package image (Admin)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Bearer token",
+                        "name": "Authorization",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Package ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "file",
+                        "description": "Package image",
+                        "name": "file",
+                        "in": "formData",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/dto.ApiResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/dto.PackageResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ApiResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ApiResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ApiResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ApiResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/api/admin/packages/{id}/toggle-active": {
             "patch": {
                 "security": [
@@ -1618,6 +1763,93 @@ const docTemplate = `{
                             "additionalProperties": {
                                 "type": "string"
                             }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ApiResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ApiResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ApiResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ApiResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/admin/themes/{id}/image": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Upload an image for a theme (admin only)",
+                "consumes": [
+                    "multipart/form-data"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admin-themes"
+                ],
+                "summary": "Upload theme image (Admin)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Bearer token",
+                        "name": "Authorization",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Theme ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "file",
+                        "description": "Theme image",
+                        "name": "file",
+                        "in": "formData",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/dto.ApiResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/dto.ThemeResponse"
+                                        }
+                                    }
+                                }
+                            ]
                         }
                     },
                     "400": {
@@ -2319,7 +2551,7 @@ const docTemplate = `{
                     }
                 },
                 "status": {
-                    "description": "PENDING | APPROVED | REJECTED",
+                    "description": "PENDING | APPROVED | REJECTED | COMPLETED",
                     "type": "string"
                 },
                 "totalPrice": {
@@ -2508,6 +2740,37 @@ const docTemplate = `{
                 }
             }
         },
+        "dto.PaginatedBookingsResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dto.BookingResponse"
+                    }
+                },
+                "pagination": {
+                    "$ref": "#/definitions/dto.PaginationInfo"
+                }
+            }
+        },
+        "dto.PaginationInfo": {
+            "type": "object",
+            "properties": {
+                "limit": {
+                    "type": "integer"
+                },
+                "page": {
+                    "type": "integer"
+                },
+                "total": {
+                    "type": "integer"
+                },
+                "totalPages": {
+                    "type": "integer"
+                }
+            }
+        },
         "dto.SlotRequest": {
             "type": "object",
             "required": [
@@ -2614,8 +2877,23 @@ const docTemplate = `{
                     "enum": [
                         "PENDING",
                         "APPROVED",
-                        "REJECTED"
+                        "REJECTED",
+                        "COMPLETED"
                     ]
+                }
+            }
+        },
+        "dto.UpdateBookingStatusResponse": {
+            "type": "object",
+            "properties": {
+                "booking": {
+                    "$ref": "#/definitions/dto.BookingResponse"
+                },
+                "emailError": {
+                    "type": "string"
+                },
+                "emailNotificationSent": {
+                    "type": "boolean"
                 }
             }
         },

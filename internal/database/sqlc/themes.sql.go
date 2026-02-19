@@ -218,3 +218,33 @@ func (q *Queries) UpdateTheme(ctx context.Context, arg UpdateThemeParams) (Theme
 	)
 	return i, err
 }
+
+const updateThemeImageURL = `-- name: UpdateThemeImageURL :one
+UPDATE themes
+SET
+    image_url = $2,
+    updated_at = NOW()
+WHERE id = $1::varchar
+RETURNING id, name, description, image_url, price, is_active, created_at, updated_at
+`
+
+type UpdateThemeImageURLParams struct {
+	Column1  string `json:"column_1"`
+	ImageUrl string `json:"image_url"`
+}
+
+func (q *Queries) UpdateThemeImageURL(ctx context.Context, arg UpdateThemeImageURLParams) (Theme, error) {
+	row := q.db.QueryRow(ctx, updateThemeImageURL, arg.Column1, arg.ImageUrl)
+	var i Theme
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Description,
+		&i.ImageUrl,
+		&i.Price,
+		&i.IsActive,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}

@@ -5,7 +5,7 @@ WHERE id = $1::varchar LIMIT 1;
 -- name: GetActivePackages :many
 SELECT * FROM packages
 WHERE is_active = true
-ORDER BY created_at DESC;
+ORDER BY price ASC;
 
 -- name: ListAllPackages :many
 SELECT * FROM packages
@@ -39,6 +39,14 @@ DELETE FROM packages WHERE id = $1::varchar;
 -- name: TogglePackageActive :one
 UPDATE packages
 SET is_active = NOT is_active,
+    updated_at = NOW()
+WHERE id = $1::varchar
+RETURNING *;
+
+-- name: UpdatePackageImageURL :one
+UPDATE packages
+SET
+    image_url = $2,
     updated_at = NOW()
 WHERE id = $1::varchar
 RETURNING *;

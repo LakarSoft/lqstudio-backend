@@ -138,13 +138,13 @@ func main() {
 	packageSvc := services.NewPackageService(packageRepo)
 	themeSvc := services.NewThemeService(themeRepo)
 	addonSvc := services.NewAddonService(addonRepo)
-	bookingService := services.NewBookingService(packageRepo, themeRepo, addonRepo, bookingRepo, emailClient, log)
+	bookingService := services.NewBookingService(packageRepo, themeRepo, addonRepo, bookingRepo, emailClient, log, cfg.Studio.OpenHour, cfg.Studio.CloseHour)
 
 	// Initialize HTTP handlers
 	healthHandler := handlers.NewHealthHandler(dbConn)
 	availabilityHandler := handlers.NewAvailabilityHandler(bookingService)
 	bookingHandler := handlers.NewBookingHandler(bookingService, &cfg.Upload)
-	adminHandler := handlers.NewAdminHandler(packageSvc, themeSvc, addonSvc, bookingService)
+	adminHandler := handlers.NewAdminHandler(packageSvc, themeSvc, addonSvc, bookingService, &cfg.Upload)
 	authHandler := handlers.NewAuthHandler(userRepo, cfg, log)
 
 	// Setup router
