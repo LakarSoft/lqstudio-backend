@@ -5,7 +5,7 @@ WHERE id = $1::varchar LIMIT 1;
 -- name: GetActivePackages :many
 SELECT * FROM packages
 WHERE is_active = true
-ORDER BY created_at DESC;
+ORDER BY price ASC;
 
 -- name: ListAllPackages :many
 SELECT * FROM packages

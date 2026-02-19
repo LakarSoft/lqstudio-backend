@@ -72,7 +72,7 @@ func (q *Queries) DeletePackage(ctx context.Context, dollar_1 string) error {
 const getActivePackages = `-- name: GetActivePackages :many
 SELECT id, name, description, duration_minutes, price, discount, offers, image_url, is_active, created_at, updated_at FROM packages
 WHERE is_active = true
-ORDER BY created_at DESC
+ORDER BY price ASC
 `
 
 func (q *Queries) GetActivePackages(ctx context.Context) ([]Package, error) {
