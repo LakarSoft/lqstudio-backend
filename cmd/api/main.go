@@ -138,7 +138,7 @@ func main() {
 	packageSvc := services.NewPackageService(packageRepo)
 	themeSvc := services.NewThemeService(themeRepo)
 	addonSvc := services.NewAddonService(addonRepo)
-	bookingService := services.NewBookingService(packageRepo, themeRepo, addonRepo, bookingRepo, emailClient, log)
+	bookingService := services.NewBookingService(packageRepo, themeRepo, addonRepo, bookingRepo, emailClient, log, cfg.Studio.OpenHour, cfg.Studio.CloseHour)
 
 	// Initialize HTTP handlers
 	healthHandler := handlers.NewHealthHandler(dbConn)

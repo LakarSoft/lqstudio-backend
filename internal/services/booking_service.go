@@ -27,6 +27,8 @@ type BookingService struct {
 	bookingRepo *repositories.BookingRepository
 	emailClient *email.Client
 	logger      *zap.Logger
+	openHour    int
+	closeHour   int
 }
 
 // NewBookingService creates a new booking service
@@ -37,6 +39,8 @@ func NewBookingService(
 	bookingRepo *repositories.BookingRepository,
 	emailClient *email.Client,
 	logger *zap.Logger,
+	openHour int,
+	closeHour int,
 ) *BookingService {
 	return &BookingService{
 		packageRepo: packageRepo,
@@ -45,6 +49,8 @@ func NewBookingService(
 		bookingRepo: bookingRepo,
 		emailClient: emailClient,
 		logger:      logger,
+		openHour:    openHour,
+		closeHour:   closeHour,
 	}
 }
 
@@ -409,8 +415,8 @@ func (s *BookingService) GetAvailability(ctx context.Context, req *dto.Availabil
 		return nil, errors.NewDatabaseError("get theme", err)
 	}
 
-	// Generate time slots from 10:00 to 18:00 in 20-minute intervals
-	allSlots := generateTimeSlots()
+	// Generate time slots based on configured studio hours
+	allSlots := generateTimeSlots(s.openHour, s.closeHour)
 
 	// Get booked slots for this theme on this date
 	bookedSlots, err := s.bookingRepo.GetBookedSlotsForThemeAndDate(ctx, req.ThemeID, req.Date)
@@ -452,7 +458,7 @@ func (s *BookingService) getAvailabilityForAllThemes(ctx context.Context, req *d
 
 	// If no active themes, all slots are unavailable
 	if len(activeThemes) == 0 {
-		allSlots := generateTimeSlots()
+		allSlots := generateTimeSlots(s.openHour, s.closeHour)
 		availabilitySlots := make([]dto.AvailableSlotInfo, len(allSlots))
 		for i, slotTime := range allSlots {
 			availabilitySlots[i] = dto.AvailableSlotInfo{
@@ -466,8 +472,8 @@ func (s *BookingService) getAvailabilityForAllThemes(ctx context.Context, req *d
 		}, nil
 	}
 
-	// Generate time slots from 10:00 to 18:00 in 20-minute intervals
-	allSlots := generateTimeSlots()
+	// Generate time slots based on configured studio hours
+	allSlots := generateTimeSlots(s.openHour, s.closeHour)
 
 	// Get all booked slots for all themes on this date
 	bookedSlots, err := s.bookingRepo.GetBookedSlotsForAllThemesAndDate(ctx, req.Date)
@@ -625,23 +631,21 @@ func generateBookingID() string {
 	return fmt.Sprintf("bkg-%d-%s", timestamp, randomHex)
 }
 
-// generateTimeSlots generates time slots from 10:00 to 18:00 in 20-minute intervals
-func generateTimeSlots() []string {
+// generateTimeSlots generates time slots in 20-minute intervals between openHour and closeHour.
+// Times are formatted in 12-hour format (e.g., "10:00 AM", "2:00 PM").
+func generateTimeSlots(openHour, closeHour int) []string {
 	slots := []string{}
-	hour := 10
+	hour := openHour
 	minute := 0
 
 	for {
-		// Stop at 18:00
-		if hour >= 18 {
+		if hour >= closeHour {
 			break
 		}
 
-		// Format time as HH:MM
-		timeStr := fmt.Sprintf("%02d:%02d", hour, minute)
-		slots = append(slots, timeStr)
+		t := time.Date(0, 1, 1, hour, minute, 0, 0, time.UTC)
+		slots = append(slots, t.Format("3:04 PM"))
 
-		// Add 20 minutes
 		minute += 20
 		if minute >= 60 {
 			minute = 0
