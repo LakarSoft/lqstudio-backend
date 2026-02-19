@@ -4,8 +4,8 @@
 -- usr-admin-001 password: Not2tell!
 -- usr-admin-002 password: Lqstudio123@
 INSERT INTO users (id, email, password_hash, name, role) VALUES
-('usr-admin-001', 'syedizzuddin@lakarsoft.com', '$2a$10$BTwHyEMrtqY7Y0A/R0cf8.RDwhkRnjVBSrGH0PxRvP.JXMNmkk6A2', 'Admin User', 'ADMIN'),
-('usr-admin-002', 'leqiucreative@gmail.com', '$2a$10$aGc9.07eRjuQaeEf/Wc6qurTtvCjJq1Sb4UNWhf0dP5oe/BRat/8y', 'LQ Studio Admin', 'ADMIN')
+('usr-admin-001', 'syedizzuddin@lakarsoft.com', '$2a$10$BTwHyEMrtqY7Y0A/R0cf8.RDwhkRnjVBSrGH0PxRvP.JXMNmkk6A2', 'Super Admin', 'ADMIN'),
+('usr-admin-002', 'lqstudio.adm1@gmail.com', '$2a$10$aGc9.07eRjuQaeEf/Wc6qurTtvCjJq1Sb4UNWhf0dP5oe/BRat/8y', 'LQ Studio Admin', 'ADMIN')
 ON CONFLICT (id) DO UPDATE SET password_hash = EXCLUDED.password_hash;
 
 -- Seed packages
