@@ -280,13 +280,14 @@ definitions:
         description: ISO date string (YYYY-MM-DD)
         type: string
       themeId:
+        description: Required for 1/2-slot packages; omitted for studio-level (3-slot)
+          packages — backend auto-assigns all themes
         type: string
       time:
         description: Time in HH:mm format (e.g., "10:00")
         type: string
     required:
     - date
-    - themeId
     - time
     type: object
   dto.SlotResponse:
@@ -1662,7 +1663,38 @@ paths:
     post:
       consumes:
       - application/json
-      description: Create a new booking (customer-facing, no auth required)
+      description: |-
+        Create a new booking (customer-facing, no auth required).
+
+        **Slot rules depend on the package type:**
+
+        **1-slot / 2-slot packages** — send exactly 1 or 2 slots, each with a `themeId`:
+        ```json
+        {
+        "packageId": "pkg-single",
+        "slots": [
+        { "date": "2026-02-24", "time": "2:20 PM", "themeId": "theme-A" }
+        ],
+        "addons": [],
+        "customer": { "name": "Anas", "email": "anas@example.com", "phone": "0123456789" }
+        }
+        ```
+
+        **Studio-level (3-slot / 60-min) packages** — send exactly 3 time slots **without** `themeId`.
+        The backend automatically books every active theme for those 3 slots.
+        Sending `themeId` is harmless but it will be ignored.
+        ```json
+        {
+        "packageId": "pkg-studio",
+        "slots": [
+        { "date": "2026-02-24", "time": "2:20 PM" },
+        { "date": "2026-02-24", "time": "2:40 PM" },
+        { "date": "2026-02-24", "time": "3:00 PM" }
+        ],
+        "addons": [],
+        "customer": { "name": "Anas", "email": "anas@example.com", "phone": "0123456789" }
+        }
+        ```
       parameters:
       - description: Booking data
         in: body
@@ -1683,11 +1715,16 @@ paths:
                   $ref: '#/definitions/dto.BookingResponse'
               type: object
         "400":
-          description: Invalid request or validation error
+          description: Invalid request, wrong slot count, or missing themeId for non-studio
+            package
+          schema:
+            $ref: '#/definitions/dto.ApiResponse'
+        "404":
+          description: Package, theme, or addon not found
           schema:
             $ref: '#/definitions/dto.ApiResponse'
         "409":
-          description: Slot not available or conflict
+          description: One or more requested slots are already booked
           schema:
             $ref: '#/definitions/dto.ApiResponse'
         "500":

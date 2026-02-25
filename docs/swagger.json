@@ -1959,7 +1959,7 @@
         },
         "/api/bookings": {
             "post": {
-                "description": "Create a new booking (customer-facing, no auth required)",
+                "description": "Create a new booking (customer-facing, no auth required).\n\n**Slot rules depend on the package type:**\n\n**1-slot / 2-slot packages** — send exactly 1 or 2 slots, each with a `themeId`:\n```json\n{\n\"packageId\": \"pkg-single\",\n\"slots\": [\n{ \"date\": \"2026-02-24\", \"time\": \"2:20 PM\", \"themeId\": \"theme-A\" }\n],\n\"addons\": [],\n\"customer\": { \"name\": \"Anas\", \"email\": \"anas@example.com\", \"phone\": \"0123456789\" }\n}\n```\n\n**Studio-level (3-slot / 60-min) packages** — send exactly 3 time slots **without** `themeId`.\nThe backend automatically books every active theme for those 3 slots.\nSending `themeId` is harmless but it will be ignored.\n```json\n{\n\"packageId\": \"pkg-studio\",\n\"slots\": [\n{ \"date\": \"2026-02-24\", \"time\": \"2:20 PM\" },\n{ \"date\": \"2026-02-24\", \"time\": \"2:40 PM\" },\n{ \"date\": \"2026-02-24\", \"time\": \"3:00 PM\" }\n],\n\"addons\": [],\n\"customer\": { \"name\": \"Anas\", \"email\": \"anas@example.com\", \"phone\": \"0123456789\" }\n}\n```",
                 "consumes": [
                     "application/json"
                 ],
@@ -2001,13 +2001,19 @@
                         }
                     },
                     "400": {
-                        "description": "Invalid request or validation error",
+                        "description": "Invalid request, wrong slot count, or missing themeId for non-studio package",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ApiResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Package, theme, or addon not found",
                         "schema": {
                             "$ref": "#/definitions/dto.ApiResponse"
                         }
                     },
                     "409": {
-                        "description": "Slot not available or conflict",
+                        "description": "One or more requested slots are already booked",
                         "schema": {
                             "$ref": "#/definitions/dto.ApiResponse"
                         }
@@ -2773,7 +2779,6 @@
             "type": "object",
             "required": [
                 "date",
-                "themeId",
                 "time"
             ],
             "properties": {
@@ -2782,6 +2787,7 @@
                     "type": "string"
                 },
                 "themeId": {
+                    "description": "Required for 1/2-slot packages; omitted for studio-level (3-slot) packages — backend auto-assigns all themes",
                     "type": "string"
                 },
                 "time": {
