@@ -70,30 +70,94 @@ func (s *BookingService) CreateBooking(ctx context.Context, req *dto.BookingRequ
 		return nil, errors.NewBadRequestError(fmt.Sprintf("Package '%s' is not active", req.PackageID))
 	}
 
-	// 2. Validate slot count matches package requirements
+	// 2. Validate slot count and handle theme assignment
 	requiredSlots := pkg.RequiredSlots()
-	if len(req.Slots) != requiredSlots {
-		return nil, errors.NewInvalidSlotCountError(requiredSlots, len(req.Slots))
-	}
+	isStudioLevel := requiredSlots == 3
 
-	// 3. Validate all themes exist and are active
-	themeIDs := make([]string, len(req.Slots))
-	for i, slot := range req.Slots {
-		themeIDs[i] = slot.ThemeID
-	}
-
-	// Get unique theme IDs
-	uniqueThemeIDs := uniqueStrings(themeIDs)
-	for _, themeID := range uniqueThemeIDs {
-		theme, err := s.themeRepo.GetByID(ctx, themeID)
-		if err != nil {
-			if stderr.Is(err, pgx.ErrNoRows) {
-				return nil, errors.NewThemeNotFoundError(themeID)
-			}
-			return nil, errors.NewDatabaseError(fmt.Sprintf("get theme %s", themeID), err)
+	if isStudioLevel {
+		// Studio-level packages (60 min) book ALL active themes.
+		// Frontend sends only the 3 time slots — backend auto-assigns every active theme.
+		if len(req.Slots) != requiredSlots {
+			return nil, errors.NewInvalidSlotCountError(requiredSlots, len(req.Slots))
 		}
-		if !theme.IsActive {
-			return nil, errors.NewBadRequestError(fmt.Sprintf("Theme '%s' is not active", themeID))
+
+		// Fetch all active themes
+		activeThemes, err := s.themeRepo.GetActive(ctx)
+		if err != nil {
+			return nil, errors.NewDatabaseError("get active themes", err)
+		}
+		if len(activeThemes) == 0 {
+			return nil, errors.NewBadRequestError("No active themes available for studio booking")
+		}
+
+		// Check availability: every active theme must be free for every requested time slot
+		for _, theme := range activeThemes {
+			for _, slot := range req.Slots {
+				bookedSlots, err := s.bookingRepo.GetBookedSlotsForThemeAndDate(ctx, theme.ID, slot.Date)
+				if err != nil {
+					return nil, errors.NewDatabaseError(fmt.Sprintf("check availability for theme %s on %s", theme.ID, slot.Date), err)
+				}
+				for _, booked := range bookedSlots {
+					if booked.Time == slot.Time {
+						return nil, errors.NewSlotUnavailableError(slot.Date, slot.Time, theme.ID)
+					}
+				}
+			}
+		}
+
+		// Expand slots: one entry per (theme × time slot), so the repository saves the full matrix
+		expanded := make([]dto.SlotRequest, 0, len(activeThemes)*len(req.Slots))
+		for _, theme := range activeThemes {
+			for _, slot := range req.Slots {
+				expanded = append(expanded, dto.SlotRequest{
+					Date:    slot.Date,
+					Time:    slot.Time,
+					ThemeID: theme.ID,
+				})
+			}
+		}
+		req.Slots = expanded
+
+	} else {
+		// 1/2-slot packages: frontend supplies explicit theme per slot
+		if len(req.Slots) != requiredSlots {
+			return nil, errors.NewInvalidSlotCountError(requiredSlots, len(req.Slots))
+		}
+
+		// Validate all themes exist and are active
+		themeIDs := make([]string, len(req.Slots))
+		for i, slot := range req.Slots {
+			if slot.ThemeID == "" {
+				return nil, errors.NewBadRequestError("themeId is required for each slot in this package type")
+			}
+			themeIDs[i] = slot.ThemeID
+		}
+
+		uniqueThemeIDs := uniqueStrings(themeIDs)
+		for _, themeID := range uniqueThemeIDs {
+			theme, err := s.themeRepo.GetByID(ctx, themeID)
+			if err != nil {
+				if stderr.Is(err, pgx.ErrNoRows) {
+					return nil, errors.NewThemeNotFoundError(themeID)
+				}
+				return nil, errors.NewDatabaseError(fmt.Sprintf("get theme %s", themeID), err)
+			}
+			if !theme.IsActive {
+				return nil, errors.NewBadRequestError(fmt.Sprintf("Theme '%s' is not active", themeID))
+			}
+		}
+
+		// Check slot availability for each (theme_id, date, time) combination
+		for _, slot := range req.Slots {
+			bookedSlots, err := s.bookingRepo.GetBookedSlotsForThemeAndDate(ctx, slot.ThemeID, slot.Date)
+			if err != nil {
+				return nil, errors.NewDatabaseError(fmt.Sprintf("check availability for theme %s on %s", slot.ThemeID, slot.Date), err)
+			}
+			for _, booked := range bookedSlots {
+				if booked.Time == slot.Time {
+					return nil, errors.NewSlotUnavailableError(slot.Date, slot.Time, slot.ThemeID)
+				}
+			}
 		}
 	}
 
@@ -126,22 +190,7 @@ func (s *BookingService) CreateBooking(ctx context.Context, req *dto.BookingRequ
 		}
 	}
 
-	// 5. Check slot availability for each (theme_id, date, time) combination
-	for _, slot := range req.Slots {
-		bookedSlots, err := s.bookingRepo.GetBookedSlotsForThemeAndDate(ctx, slot.ThemeID, slot.Date)
-		if err != nil {
-			return nil, errors.NewDatabaseError(fmt.Sprintf("check availability for theme %s on %s", slot.ThemeID, slot.Date), err)
-		}
-
-		// Check if this specific time is already booked
-		for _, booked := range bookedSlots {
-			if booked.Time == slot.Time {
-				return nil, errors.NewSlotUnavailableError(slot.Date, slot.Time, slot.ThemeID)
-			}
-		}
-	}
-
-	// 6. Calculate prices
+	// 5. Calculate prices
 	// Package amount = package.FinalPrice() (which already applies discount)
 	packageAmount := pkg.FinalPrice()
 

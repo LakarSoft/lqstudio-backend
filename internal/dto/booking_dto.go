@@ -22,7 +22,7 @@ type BookingRequest struct {
 type SlotRequest struct {
 	Date    string `json:"date" validate:"required"` // ISO date string (YYYY-MM-DD)
 	Time    string `json:"time" validate:"required"` // Time in HH:mm format (e.g., "10:00")
-	ThemeID string `json:"themeId" validate:"required"`
+	ThemeID string `json:"themeId,omitempty"`        // Required for 1/2-slot packages; omitted for studio-level (3-slot) packages — backend auto-assigns all themes
 }
 
 // AddonRequest represents an add-on selection in a booking
