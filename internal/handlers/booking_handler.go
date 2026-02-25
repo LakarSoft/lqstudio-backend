@@ -30,14 +30,45 @@ func NewBookingHandler(
 
 // CreateBooking godoc
 // @Summary Create new booking
-// @Description Create a new booking (customer-facing, no auth required)
+// @Description Create a new booking (customer-facing, no auth required).
+// @Description
+// @Description **Slot rules depend on the package type:**
+// @Description
+// @Description **1-slot / 2-slot packages** — send exactly 1 or 2 slots, each with a `themeId`:
+// @Description ```json
+// @Description {
+// @Description   "packageId": "pkg-single",
+// @Description   "slots": [
+// @Description     { "date": "2026-02-24", "time": "2:20 PM", "themeId": "theme-A" }
+// @Description   ],
+// @Description   "addons": [],
+// @Description   "customer": { "name": "Anas", "email": "anas@example.com", "phone": "0123456789" }
+// @Description }
+// @Description ```
+// @Description
+// @Description **Studio-level (3-slot / 60-min) packages** — send exactly 3 time slots **without** `themeId`.
+// @Description The backend automatically books every active theme for those 3 slots.
+// @Description Sending `themeId` is harmless but it will be ignored.
+// @Description ```json
+// @Description {
+// @Description   "packageId": "pkg-studio",
+// @Description   "slots": [
+// @Description     { "date": "2026-02-24", "time": "2:20 PM" },
+// @Description     { "date": "2026-02-24", "time": "2:40 PM" },
+// @Description     { "date": "2026-02-24", "time": "3:00 PM" }
+// @Description   ],
+// @Description   "addons": [],
+// @Description   "customer": { "name": "Anas", "email": "anas@example.com", "phone": "0123456789" }
+// @Description }
+// @Description ```
 // @Tags bookings
 // @Accept json
 // @Produce json
 // @Param request body dto.BookingRequest true "Booking data"
 // @Success 201 {object} dto.ApiResponse{data=dto.BookingResponse}
-// @Failure 400 {object} dto.ApiResponse "Invalid request or validation error"
-// @Failure 409 {object} dto.ApiResponse "Slot not available or conflict"
+// @Failure 400 {object} dto.ApiResponse "Invalid request, wrong slot count, or missing themeId for non-studio package"
+// @Failure 404 {object} dto.ApiResponse "Package, theme, or addon not found"
+// @Failure 409 {object} dto.ApiResponse "One or more requested slots are already booked"
 // @Failure 500 {object} dto.ApiResponse
 // @Router /api/bookings [post]
 func (h *BookingHandler) CreateBooking(c echo.Context) error {
