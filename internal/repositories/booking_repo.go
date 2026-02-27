@@ -218,6 +218,90 @@ func (r *BookingRepository) UpdatePaymentScreenshot(ctx context.Context, id stri
 	return err
 }
 
+// UpdateBooking replaces slots and addons for an existing booking in a single transaction.
+// It also updates customer info and recalculates total_price.
+func (r *BookingRepository) UpdateBooking(ctx context.Context, bookingID string, booking *models.Booking) error {
+	tx, err := r.pool.BeginTx(ctx, pgx.TxOptions{})
+	if err != nil {
+		return fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
+	qtx := r.queries.WithTx(tx)
+
+	// Delete existing slots and addons
+	if err := qtx.DeleteBookingSlots(ctx, bookingID); err != nil {
+		return fmt.Errorf("failed to delete booking slots: %w", err)
+	}
+	if err := qtx.DeleteBookingAddons(ctx, bookingID); err != nil {
+		return fmt.Errorf("failed to delete booking addons: %w", err)
+	}
+
+	// Insert new slots
+	for _, slot := range booking.Slots {
+		slotTime, err := StringToTime(slot.Time)
+		if err != nil {
+			return fmt.Errorf("failed to parse slot time: %w", err)
+		}
+		_, err = qtx.CreateBookingSlot(ctx, sqlc.CreateBookingSlotParams{
+			BookingID: bookingID,
+			Date:      TimeToDate(slot.Date),
+			Time:      slotTime,
+			ThemeID:   slot.ThemeID,
+		})
+		if err != nil {
+			return fmt.Errorf("failed to create booking slot: %w", err)
+		}
+	}
+
+	// Insert new addons
+	for _, addon := range booking.Addons {
+		_, err = qtx.CreateBookingAddon(ctx, sqlc.CreateBookingAddonParams{
+			BookingID: bookingID,
+			AddonID:   addon.AddonID,
+			Quantity:  int32(addon.Quantity),
+		})
+		if err != nil {
+			return fmt.Errorf("failed to create booking addon: %w", err)
+		}
+	}
+
+	// Update booking core fields
+	updated, err := qtx.UpdateBookingDetails(ctx, sqlc.UpdateBookingDetailsParams{
+		Column1:       bookingID,
+		CustomerName:  booking.CustomerName,
+		CustomerEmail: booking.CustomerEmail,
+		CustomerPhone: booking.CustomerPhone,
+		CustomerNotes: StringPtr(booking.CustomerNotes),
+		TotalPrice:    DecimalToNumeric(booking.TotalAmount),
+	})
+	if err != nil {
+		return fmt.Errorf("failed to update booking details: %w", err)
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("failed to commit transaction: %w", err)
+	}
+
+	// Reflect committed state back into the passed model
+	updatedModel := r.toBookingModel(updated)
+
+	slotRows, err := r.queries.GetBookingSlots(ctx, bookingID)
+	if err != nil {
+		return fmt.Errorf("failed to fetch updated slots: %w", err)
+	}
+	updatedModel.Slots = r.toSlotModels(slotRows)
+
+	addonRows, err := r.queries.GetBookingAddons(ctx, bookingID)
+	if err != nil {
+		return fmt.Errorf("failed to fetch updated addons: %w", err)
+	}
+	updatedModel.Addons = r.toAddonModels(addonRows)
+
+	*booking = *updatedModel
+	return nil
+}
+
 // Count returns the total number of bookings
 func (r *BookingRepository) Count(ctx context.Context) (int64, error) {
 	return r.queries.CountBookings(ctx)

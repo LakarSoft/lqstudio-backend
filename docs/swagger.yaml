@@ -339,6 +339,24 @@ definitions:
     - name
     - price
     type: object
+  dto.UpdateBookingRequest:
+    properties:
+      addons:
+        items:
+          $ref: '#/definitions/dto.AddonRequest'
+        type: array
+      customer:
+        $ref: '#/definitions/dto.CustomerInfo'
+      slots:
+        items:
+          $ref: '#/definitions/dto.SlotRequest'
+        maxItems: 3
+        minItems: 1
+        type: array
+    required:
+    - customer
+    - slots
+    type: object
   dto.UpdateBookingStatusRequest:
     properties:
       adminNotes:
@@ -912,6 +930,81 @@ paths:
       summary: Get booking by ID (Admin)
       tags:
       - admin-bookings
+    put:
+      consumes:
+      - application/json
+      description: |-
+        Update an existing booking's slots, addons, and customer info. Admin only.
+        Only PENDING and APPROVED bookings can be updated.
+
+        **Payload is the same as CreateBooking minus packageId.**
+
+        **1/2-slot packages** — include themeId per slot:
+        ```json
+        { "slots": [{ "date": "2026-03-10", "time": "10:00 AM", "themeId": "theme-A" }], "addons": [], "customer": { "name": "Anas", "email": "anas@example.com", "phone": "0123456789" } }
+        ```
+
+        **3-slot studio packages** — omit themeId, send exactly 3 consecutive slots:
+        ```json
+        { "slots": [{ "date": "2026-03-10", "time": "10:00 AM" }, { "date": "2026-03-10", "time": "10:20 AM" }, { "date": "2026-03-10", "time": "10:40 AM" }], "addons": [], "customer": { "name": "Anas", "email": "anas@example.com", "phone": "0123456789" } }
+        ```
+      parameters:
+      - description: Booking ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Updated booking data
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.UpdateBookingRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/dto.ApiResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/dto.BookingResponse'
+              type: object
+        "400":
+          description: Invalid request or wrong slot count
+          schema:
+            $ref: '#/definitions/dto.ApiResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.ApiResponse'
+        "403":
+          description: Forbidden – requires ADMIN role
+          schema:
+            $ref: '#/definitions/dto.ApiResponse'
+        "404":
+          description: Booking not found
+          schema:
+            $ref: '#/definitions/dto.ApiResponse'
+        "409":
+          description: One or more requested slots are already booked
+          schema:
+            $ref: '#/definitions/dto.ApiResponse'
+        "422":
+          description: Booking is in a terminal status (REJECTED or COMPLETED)
+          schema:
+            $ref: '#/definitions/dto.ApiResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.ApiResponse'
+      security:
+      - BearerAuth: []
+      summary: Update booking (admin)
+      tags:
+      - admin
   /api/admin/bookings/{id}/status:
     patch:
       consumes:

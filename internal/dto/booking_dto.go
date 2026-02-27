@@ -17,6 +17,16 @@ type BookingRequest struct {
 	Customer  CustomerInfo   `json:"customer" validate:"required"`
 }
 
+// UpdateBookingRequest represents a booking update request (admin only).
+// Payload is identical to BookingRequest minus packageId — the package cannot change.
+// Slot rules are the same: 1/2-slot packages require themeId per slot;
+// 3-slot (studio-level) packages omit themeId and the backend auto-assigns all themes.
+type UpdateBookingRequest struct {
+	Slots    []SlotRequest  `json:"slots" validate:"required,min=1,max=3,dive"`
+	Addons   []AddonRequest `json:"addons,omitempty"`
+	Customer CustomerInfo   `json:"customer" validate:"required"`
+}
+
 // SlotRequest represents a single booking slot
 // Matches the frontend BookingSlot structure with camelCase JSON tags
 type SlotRequest struct {
