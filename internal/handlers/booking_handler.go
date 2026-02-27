@@ -206,3 +206,62 @@ func (h *BookingHandler) UploadPaymentScreenshot(c echo.Context) error {
 
 	return SendOK(c, booking, "Payment screenshot uploaded successfully")
 }
+
+// UpdateBooking godoc
+// @Summary Update booking (admin)
+// @Description Update an existing booking's slots, addons, and customer info. Admin only.
+// @Description Only PENDING and APPROVED bookings can be updated.
+// @Description
+// @Description **Payload is the same as CreateBooking minus packageId.**
+// @Description
+// @Description **1/2-slot packages** — include themeId per slot:
+// @Description ```json
+// @Description { "slots": [{ "date": "2026-03-10", "time": "10:00 AM", "themeId": "theme-A" }], "addons": [], "customer": { "name": "Anas", "email": "anas@example.com", "phone": "0123456789" } }
+// @Description ```
+// @Description
+// @Description **3-slot studio packages** — omit themeId, send exactly 3 consecutive slots:
+// @Description ```json
+// @Description { "slots": [{ "date": "2026-03-10", "time": "10:00 AM" }, { "date": "2026-03-10", "time": "10:20 AM" }, { "date": "2026-03-10", "time": "10:40 AM" }], "addons": [], "customer": { "name": "Anas", "email": "anas@example.com", "phone": "0123456789" } }
+// @Description ```
+// @Tags admin
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "Booking ID"
+// @Param request body dto.UpdateBookingRequest true "Updated booking data"
+// @Success 200 {object} dto.ApiResponse{data=dto.BookingResponse}
+// @Failure 400 {object} dto.ApiResponse "Invalid request or wrong slot count"
+// @Failure 401 {object} dto.ApiResponse "Unauthorized"
+// @Failure 403 {object} dto.ApiResponse "Forbidden – requires ADMIN role"
+// @Failure 404 {object} dto.ApiResponse "Booking not found"
+// @Failure 409 {object} dto.ApiResponse "One or more requested slots are already booked"
+// @Failure 422 {object} dto.ApiResponse "Booking is in a terminal status (REJECTED or COMPLETED)"
+// @Failure 500 {object} dto.ApiResponse
+// @Router /api/admin/bookings/{id} [put]
+func (h *BookingHandler) UpdateBooking(c echo.Context) error {
+	id := c.Param("id")
+	if id == "" {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid booking ID")
+	}
+
+	var req dto.UpdateBookingRequest
+	if err := c.Bind(&req); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid request body")
+	}
+
+	result, err := h.bookingService.UpdateBooking(c.Request().Context(), id, &req)
+	if err != nil {
+		if appErr, ok := err.(*errors.AppError); ok {
+			return appErr
+		}
+		if strings.Contains(err.Error(), "not available") || strings.Contains(err.Error(), "conflict") || strings.Contains(err.Error(), "already booked") {
+			return echo.NewHTTPError(http.StatusConflict, err.Error())
+		}
+		if strings.Contains(err.Error(), "not found") {
+			return echo.NewHTTPError(http.StatusNotFound, err.Error())
+		}
+		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
+	}
+
+	return SendOK(c, result, "Booking updated successfully")
+}

@@ -746,6 +746,104 @@ const docTemplate = `{
                         }
                     }
                 }
+            },
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Update an existing booking's slots, addons, and customer info. Admin only.\nOnly PENDING and APPROVED bookings can be updated.\n\n**Payload is the same as CreateBooking minus packageId.**\n\n**1/2-slot packages** — include themeId per slot:\n` + "`" + `` + "`" + `` + "`" + `json\n{ \"slots\": [{ \"date\": \"2026-03-10\", \"time\": \"10:00 AM\", \"themeId\": \"theme-A\" }], \"addons\": [], \"customer\": { \"name\": \"Anas\", \"email\": \"anas@example.com\", \"phone\": \"0123456789\" } }\n` + "`" + `` + "`" + `` + "`" + `\n\n**3-slot studio packages** — omit themeId, send exactly 3 consecutive slots:\n` + "`" + `` + "`" + `` + "`" + `json\n{ \"slots\": [{ \"date\": \"2026-03-10\", \"time\": \"10:00 AM\" }, { \"date\": \"2026-03-10\", \"time\": \"10:20 AM\" }, { \"date\": \"2026-03-10\", \"time\": \"10:40 AM\" }], \"addons\": [], \"customer\": { \"name\": \"Anas\", \"email\": \"anas@example.com\", \"phone\": \"0123456789\" } }\n` + "`" + `` + "`" + `` + "`" + `",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admin"
+                ],
+                "summary": "Update booking (admin)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Booking ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Updated booking data",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.UpdateBookingRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/dto.ApiResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/dto.BookingResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid request or wrong slot count",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ApiResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ApiResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden – requires ADMIN role",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ApiResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Booking not found",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ApiResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "One or more requested slots are already booked",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ApiResponse"
+                        }
+                    },
+                    "422": {
+                        "description": "Booking is in a terminal status (REJECTED or COMPLETED)",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ApiResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ApiResponse"
+                        }
+                    }
+                }
             }
         },
         "/api/admin/bookings/{id}/status": {
@@ -2866,6 +2964,32 @@ const docTemplate = `{
                 },
                 "unit": {
                     "type": "string"
+                }
+            }
+        },
+        "dto.UpdateBookingRequest": {
+            "type": "object",
+            "required": [
+                "customer",
+                "slots"
+            ],
+            "properties": {
+                "addons": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dto.AddonRequest"
+                    }
+                },
+                "customer": {
+                    "$ref": "#/definitions/dto.CustomerInfo"
+                },
+                "slots": {
+                    "type": "array",
+                    "maxItems": 3,
+                    "minItems": 1,
+                    "items": {
+                        "$ref": "#/definitions/dto.SlotRequest"
+                    }
                 }
             }
         },

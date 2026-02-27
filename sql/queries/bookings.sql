@@ -49,6 +49,18 @@ SET
 WHERE id = $1::varchar
 RETURNING *;
 
+-- name: UpdateBookingDetails :one
+UPDATE bookings
+SET
+    customer_name  = $2,
+    customer_email = $3,
+    customer_phone = $4,
+    customer_notes = $5,
+    total_price    = $6,
+    updated_at     = NOW()
+WHERE id = $1::varchar
+RETURNING *;
+
 -- =====================================================
 -- BOOKING SLOTS QUERIES
 -- =====================================================
@@ -64,6 +76,10 @@ INSERT INTO booking_slots (
 SELECT * FROM booking_slots
 WHERE booking_id = $1::varchar
 ORDER BY date, time;
+
+-- name: DeleteBookingSlots :exec
+DELETE FROM booking_slots
+WHERE booking_id = $1::varchar;
 
 -- name: GetBookedSlotsForThemeAndDate :many
 SELECT bs.* FROM booking_slots bs
@@ -93,4 +109,8 @@ INSERT INTO booking_addons (
 
 -- name: GetBookingAddons :many
 SELECT * FROM booking_addons
+WHERE booking_id = $1::varchar;
+
+-- name: DeleteBookingAddons :exec
+DELETE FROM booking_addons
 WHERE booking_id = $1::varchar;
