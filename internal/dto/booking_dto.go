@@ -126,8 +126,8 @@ type BookingFilters struct {
 	PackageID string `query:"packageId"` // Filter by package ID
 	ThemeID   string `query:"themeId"`   // Filter by theme (joins booking_slots)
 	SlotDate  string `query:"slotDate"`  // Filter by slot date (YYYY-MM-DD)
-	DateFrom  string `query:"dateFrom"`  // Bookings created from this date (YYYY-MM-DD)
-	DateTo    string `query:"dateTo"`    // Bookings created up to this date (YYYY-MM-DD)
+	DateFrom  string `query:"dateFrom"`  // Filter by slot date from (YYYY-MM-DD)
+	DateTo    string `query:"dateTo"`    // Filter by slot date to (YYYY-MM-DD)
 	Search    string `query:"search"`    // Search customer name, email, or phone
 	SortBy    string `query:"sortBy"`    // Sort field: createdAt, updatedAt, totalPrice, status (default: createdAt)
 	Order     string `query:"order"`     // Sort order: asc, desc (default: desc)

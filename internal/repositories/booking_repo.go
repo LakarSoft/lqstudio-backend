@@ -338,19 +338,19 @@ func (r *BookingRepository) ListWithFilters(ctx context.Context, filters *dto.Bo
 		argIdx++
 	}
 
+	needsSlotJoin := filters.ThemeID != "" || filters.SlotDate != "" || filters.DateFrom != "" || filters.DateTo != ""
+
 	if filters.DateFrom != "" {
-		conditions = append(conditions, fmt.Sprintf("b.created_at >= $%d::timestamptz", argIdx))
-		args = append(args, filters.DateFrom+"T00:00:00Z")
+		conditions = append(conditions, fmt.Sprintf("bs.date >= $%d::date", argIdx))
+		args = append(args, filters.DateFrom)
 		argIdx++
 	}
 
 	if filters.DateTo != "" {
-		conditions = append(conditions, fmt.Sprintf("b.created_at < $%d::timestamptz", argIdx))
-		args = append(args, filters.DateTo+"T23:59:59Z")
+		conditions = append(conditions, fmt.Sprintf("bs.date <= $%d::date", argIdx))
+		args = append(args, filters.DateTo)
 		argIdx++
 	}
-
-	needsSlotJoin := filters.ThemeID != "" || filters.SlotDate != ""
 
 	if filters.ThemeID != "" {
 		conditions = append(conditions, fmt.Sprintf("bs.theme_id = $%d", argIdx))
