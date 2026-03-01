@@ -796,8 +796,8 @@ func (h *AdminHandler) ToggleAddonActive(c echo.Context) error {
 // @Param packageId query string false "Filter by package ID"
 // @Param themeId query string false "Filter by theme ID"
 // @Param slotDate query string false "Filter by slot date (YYYY-MM-DD)"
-// @Param dateFrom query string false "Filter bookings created from this date (YYYY-MM-DD)"
-// @Param dateTo query string false "Filter bookings created up to this date (YYYY-MM-DD)"
+// @Param dateFrom query string false "Filter by slot date from (YYYY-MM-DD)"
+// @Param dateTo query string false "Filter by slot date to (YYYY-MM-DD)"
 // @Param search query string false "Search customer name, email, or phone"
 // @Param sortBy query string false "Sort field" Enums(createdAt, updatedAt, totalPrice, status) default(createdAt)
 // @Param order query string false "Sort order" Enums(asc, desc) default(desc)

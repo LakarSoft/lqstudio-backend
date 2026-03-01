@@ -435,6 +435,227 @@ func (s *BookingService) UpdatePaymentScreenshot(ctx context.Context, bookingID 
 	return dto.ToBookingResponse(booking), nil
 }
 
+// UpdateBooking updates a booking's slots, addons, and customer info.
+// Only PENDING and APPROVED bookings can be updated.
+// The packageId is read from the existing booking — it cannot change.
+func (s *BookingService) UpdateBooking(ctx context.Context, bookingID string, req *dto.UpdateBookingRequest) (*dto.BookingResponse, error) {
+	// 1. Fetch existing booking (validates it exists)
+	existing, err := s.bookingRepo.GetByID(ctx, bookingID)
+	if err != nil {
+		if stderr.Is(err, pgx.ErrNoRows) {
+			return nil, errors.NewBookingNotFoundError(bookingID)
+		}
+		return nil, errors.NewDatabaseError("get booking", err)
+	}
+
+	s.logger.Info("updating booking",
+		zap.String("booking_id", bookingID),
+		zap.String("status", string(existing.Status)),
+	)
+
+	// 2. Validate status — only PENDING and APPROVED can be updated
+	if existing.Status == models.BookingStatusRejected || existing.Status == models.BookingStatusCompleted {
+		return nil, errors.NewUnprocessableEntityError(
+			fmt.Sprintf("Booking cannot be updated in '%s' status. Only PENDING and APPROVED bookings can be updated.", existing.Status),
+		)
+	}
+
+	// 3. Fetch package using stored packageId
+	pkg, err := s.packageRepo.GetByID(ctx, existing.PackageID)
+	if err != nil {
+		if stderr.Is(err, pgx.ErrNoRows) {
+			return nil, errors.NewPackageNotFoundError(existing.PackageID)
+		}
+		return nil, errors.NewDatabaseError("get package", err)
+	}
+
+	// 4. Validate slot count and handle theme assignment (mirrors CreateBooking logic)
+	requiredSlots := pkg.RequiredSlots()
+	isStudioLevel := requiredSlots == 3
+
+	if isStudioLevel {
+		if len(req.Slots) != requiredSlots {
+			return nil, errors.NewInvalidSlotCountError(requiredSlots, len(req.Slots))
+		}
+
+		// Validate date formats upfront before hitting the DB
+		for i, slot := range req.Slots {
+			if _, err := time.Parse("2006-01-02", slot.Date); err != nil {
+				return nil, errors.NewBadRequestError(fmt.Sprintf("invalid date format for slot %d: expected YYYY-MM-DD, got '%s'", i, slot.Date))
+			}
+		}
+
+		activeThemes, err := s.themeRepo.GetActive(ctx)
+		if err != nil {
+			return nil, errors.NewDatabaseError("get active themes", err)
+		}
+		if len(activeThemes) == 0 {
+			return nil, errors.NewBadRequestError("No active themes available for studio booking")
+		}
+
+		// Availability check: exclude this booking's own slots by filtering on bookingID
+		for _, theme := range activeThemes {
+			for _, slot := range req.Slots {
+				bookedSlots, err := s.bookingRepo.GetBookedSlotsForThemeAndDate(ctx, theme.ID, slot.Date)
+				if err != nil {
+					return nil, errors.NewDatabaseError(fmt.Sprintf("check availability for theme %s on %s", theme.ID, slot.Date), err)
+				}
+				for _, booked := range bookedSlots {
+					if booked.BookingID == bookingID {
+						continue // skip this booking's own slots
+					}
+					if booked.Time == slot.Time {
+						return nil, errors.NewSlotUnavailableError(slot.Date, slot.Time, theme.ID)
+					}
+				}
+			}
+		}
+
+		// Expand slots: one entry per (theme × time slot)
+		expanded := make([]dto.SlotRequest, 0, len(activeThemes)*len(req.Slots))
+		for _, theme := range activeThemes {
+			for _, slot := range req.Slots {
+				expanded = append(expanded, dto.SlotRequest{
+					Date:    slot.Date,
+					Time:    slot.Time,
+					ThemeID: theme.ID,
+				})
+			}
+		}
+		req.Slots = expanded
+
+	} else {
+		if len(req.Slots) != requiredSlots {
+			return nil, errors.NewInvalidSlotCountError(requiredSlots, len(req.Slots))
+		}
+
+		// Validate date formats upfront before hitting the DB
+		for i, slot := range req.Slots {
+			if _, err := time.Parse("2006-01-02", slot.Date); err != nil {
+				return nil, errors.NewBadRequestError(fmt.Sprintf("invalid date format for slot %d: expected YYYY-MM-DD, got '%s'", i, slot.Date))
+			}
+		}
+
+		// Validate themeIds
+		themeIDs := make([]string, len(req.Slots))
+		for i, slot := range req.Slots {
+			if slot.ThemeID == "" {
+				return nil, errors.NewBadRequestError("themeId is required for each slot in this package type")
+			}
+			themeIDs[i] = slot.ThemeID
+		}
+
+		for _, themeID := range uniqueStrings(themeIDs) {
+			theme, err := s.themeRepo.GetByID(ctx, themeID)
+			if err != nil {
+				if stderr.Is(err, pgx.ErrNoRows) {
+					return nil, errors.NewThemeNotFoundError(themeID)
+				}
+				return nil, errors.NewDatabaseError(fmt.Sprintf("get theme %s", themeID), err)
+			}
+			if !theme.IsActive {
+				return nil, errors.NewBadRequestError(fmt.Sprintf("Theme '%s' is not active", themeID))
+			}
+		}
+
+		// Availability check: exclude this booking's own slots
+		for _, slot := range req.Slots {
+			bookedSlots, err := s.bookingRepo.GetBookedSlotsForThemeAndDate(ctx, slot.ThemeID, slot.Date)
+			if err != nil {
+				return nil, errors.NewDatabaseError(fmt.Sprintf("check availability for theme %s on %s", slot.ThemeID, slot.Date), err)
+			}
+			for _, booked := range bookedSlots {
+				if booked.BookingID == bookingID {
+					continue // skip this booking's own slots
+				}
+				if booked.Time == slot.Time {
+					return nil, errors.NewSlotUnavailableError(slot.Date, slot.Time, slot.ThemeID)
+				}
+			}
+		}
+	}
+
+	// 5. Validate addons and calculate addon prices in one pass (avoids a second DB call)
+	packageAmount := pkg.FinalPrice()
+	addonsAmount := decimal.Zero
+	if len(req.Addons) > 0 {
+		addonIDs := make([]string, len(req.Addons))
+		for i, addon := range req.Addons {
+			addonIDs[i] = addon.AddonID
+		}
+		validatedAddons, err := s.addonRepo.GetByIDs(ctx, addonIDs)
+		if err != nil {
+			return nil, errors.NewDatabaseError("get addons", err)
+		}
+		addonMap := make(map[string]*models.AddOn)
+		for _, addon := range validatedAddons {
+			addonMap[addon.ID] = addon
+		}
+		for _, reqAddon := range req.Addons {
+			addon, exists := addonMap[reqAddon.AddonID]
+			if !exists {
+				return nil, errors.NewAddonNotFoundError(reqAddon.AddonID)
+			}
+			if !addon.IsActive {
+				return nil, errors.NewBadRequestError(fmt.Sprintf("Addon '%s' is not active", reqAddon.AddonID))
+			}
+			// Build addon price from the already-fetched validatedAddons (no second DB call)
+			addonsAmount = addonsAmount.Add(addon.Price.Mul(decimal.NewFromInt(int64(reqAddon.Quantity))))
+		}
+	}
+
+	// 6. Calculate total
+	totalAmount := packageAmount.Add(addonsAmount)
+
+	// 7. Build updated booking model
+	slots := make([]models.BookingSlot, len(req.Slots))
+	for i, slot := range req.Slots {
+		date, err := time.Parse("2006-01-02", slot.Date)
+		if err != nil {
+			return nil, errors.NewBadRequestError(fmt.Sprintf("invalid date format for slot %d: expected YYYY-MM-DD, got '%s'", i, slot.Date))
+		}
+		slots[i] = models.BookingSlot{
+			ThemeID: slot.ThemeID,
+			Date:    date,
+			Time:    slot.Time,
+		}
+	}
+	addons := make([]models.BookingAddon, len(req.Addons))
+	for i, addon := range req.Addons {
+		addons[i] = models.BookingAddon{
+			AddonID:  addon.AddonID,
+			Quantity: addon.Quantity,
+		}
+	}
+
+	updated := &models.Booking{
+		ID:            bookingID,
+		PackageID:     existing.PackageID,
+		CustomerName:  req.Customer.Name,
+		CustomerEmail: req.Customer.Email,
+		CustomerPhone: req.Customer.Phone,
+		CustomerNotes: req.Customer.Notes,
+		Status:        existing.Status,
+		PackageAmount: packageAmount,
+		AddOnsAmount:  addonsAmount,
+		TotalAmount:   totalAmount,
+		Slots:         slots,
+		Addons:        addons,
+	}
+
+	// 8. Persist via repository
+	if err := s.bookingRepo.UpdateBooking(ctx, bookingID, updated); err != nil {
+		return nil, errors.NewDatabaseError("update booking", err)
+	}
+
+	s.logger.Info("booking updated successfully",
+		zap.String("booking_id", bookingID),
+	)
+
+	// updated is mutated in-place by UpdateBooking (slots, addons, timestamps are refreshed from DB)
+	return dto.ToBookingResponse(updated), nil
+}
+
 // GetAvailability checks available time slots for a theme on a date
 // If themeID is "all", it returns aggregated availability across all active themes
 func (s *BookingService) GetAvailability(ctx context.Context, req *dto.AvailabilityRequest) (*dto.AvailabilityResponse, error) {

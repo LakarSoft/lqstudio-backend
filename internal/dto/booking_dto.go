@@ -17,6 +17,16 @@ type BookingRequest struct {
 	Customer  CustomerInfo   `json:"customer" validate:"required"`
 }
 
+// UpdateBookingRequest represents a booking update request (admin only).
+// Payload is identical to BookingRequest minus packageId — the package cannot change.
+// Slot rules are the same: 1/2-slot packages require themeId per slot;
+// 3-slot (studio-level) packages omit themeId and the backend auto-assigns all themes.
+type UpdateBookingRequest struct {
+	Slots    []SlotRequest  `json:"slots" validate:"required,min=1,max=3,dive"`
+	Addons   []AddonRequest `json:"addons,omitempty"`
+	Customer CustomerInfo   `json:"customer" validate:"required"`
+}
+
 // SlotRequest represents a single booking slot
 // Matches the frontend BookingSlot structure with camelCase JSON tags
 type SlotRequest struct {
@@ -116,8 +126,8 @@ type BookingFilters struct {
 	PackageID string `query:"packageId"` // Filter by package ID
 	ThemeID   string `query:"themeId"`   // Filter by theme (joins booking_slots)
 	SlotDate  string `query:"slotDate"`  // Filter by slot date (YYYY-MM-DD)
-	DateFrom  string `query:"dateFrom"`  // Bookings created from this date (YYYY-MM-DD)
-	DateTo    string `query:"dateTo"`    // Bookings created up to this date (YYYY-MM-DD)
+	DateFrom  string `query:"dateFrom"`  // Filter by slot date from (YYYY-MM-DD)
+	DateTo    string `query:"dateTo"`    // Filter by slot date to (YYYY-MM-DD)
 	Search    string `query:"search"`    // Search customer name, email, or phone
 	SortBy    string `query:"sortBy"`    // Sort field: createdAt, updatedAt, totalPrice, status (default: createdAt)
 	Order     string `query:"order"`     // Sort order: asc, desc (default: desc)

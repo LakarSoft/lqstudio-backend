@@ -144,6 +144,26 @@ func (q *Queries) CreateBookingSlot(ctx context.Context, arg CreateBookingSlotPa
 	return i, err
 }
 
+const deleteBookingAddons = `-- name: DeleteBookingAddons :exec
+DELETE FROM booking_addons
+WHERE booking_id = $1::varchar
+`
+
+func (q *Queries) DeleteBookingAddons(ctx context.Context, dollar_1 string) error {
+	_, err := q.db.Exec(ctx, deleteBookingAddons, dollar_1)
+	return err
+}
+
+const deleteBookingSlots = `-- name: DeleteBookingSlots :exec
+DELETE FROM booking_slots
+WHERE booking_id = $1::varchar
+`
+
+func (q *Queries) DeleteBookingSlots(ctx context.Context, dollar_1 string) error {
+	_, err := q.db.Exec(ctx, deleteBookingSlots, dollar_1)
+	return err
+}
+
 const getBookedSlotsForAllThemesAndDate = `-- name: GetBookedSlotsForAllThemesAndDate :many
 SELECT bs.id, bs.booking_id, bs.date, bs.time, bs.theme_id, bs.created_at FROM booking_slots bs
 INNER JOIN bookings b ON bs.booking_id = b.id
@@ -429,6 +449,55 @@ func (q *Queries) ListBookings(ctx context.Context, arg ListBookingsParams) ([]B
 		return nil, err
 	}
 	return items, nil
+}
+
+const updateBookingDetails = `-- name: UpdateBookingDetails :one
+UPDATE bookings
+SET
+    customer_name  = $2,
+    customer_email = $3,
+    customer_phone = $4,
+    customer_notes = $5,
+    total_price    = $6,
+    updated_at     = NOW()
+WHERE id = $1::varchar
+RETURNING id, package_id, customer_name, customer_email, customer_phone, customer_notes, payment_screenshot_url, status, total_price, admin_notes, created_at, updated_at
+`
+
+type UpdateBookingDetailsParams struct {
+	Column1       string         `json:"column_1"`
+	CustomerName  string         `json:"customer_name"`
+	CustomerEmail string         `json:"customer_email"`
+	CustomerPhone string         `json:"customer_phone"`
+	CustomerNotes *string        `json:"customer_notes"`
+	TotalPrice    pgtype.Numeric `json:"total_price"`
+}
+
+func (q *Queries) UpdateBookingDetails(ctx context.Context, arg UpdateBookingDetailsParams) (Booking, error) {
+	row := q.db.QueryRow(ctx, updateBookingDetails,
+		arg.Column1,
+		arg.CustomerName,
+		arg.CustomerEmail,
+		arg.CustomerPhone,
+		arg.CustomerNotes,
+		arg.TotalPrice,
+	)
+	var i Booking
+	err := row.Scan(
+		&i.ID,
+		&i.PackageID,
+		&i.CustomerName,
+		&i.CustomerEmail,
+		&i.CustomerPhone,
+		&i.CustomerNotes,
+		&i.PaymentScreenshotUrl,
+		&i.Status,
+		&i.TotalPrice,
+		&i.AdminNotes,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
 }
 
 const updateBookingPaymentScreenshot = `-- name: UpdateBookingPaymentScreenshot :one
