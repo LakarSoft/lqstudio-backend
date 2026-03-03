@@ -120,6 +120,12 @@ type UpdateBookingStatusResponse struct {
 	EmailError            string           `json:"emailError,omitempty"`
 }
 
+// UpdateAdminNotesRequest for admin-only notes updates on a booking
+// Allows the admin to set or clear the internal notes without touching the booking status
+type UpdateAdminNotesRequest struct {
+	AdminNotes string `json:"adminNotes"`
+}
+
 // BookingFilters for admin booking list with filtering, sorting, and pagination
 type BookingFilters struct {
 	Status    string `query:"status"`    // Filter by status (PENDING, APPROVED, REJECTED, COMPLETED)

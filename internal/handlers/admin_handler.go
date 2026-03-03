@@ -923,6 +923,44 @@ func (h *AdminHandler) UpdateBookingStatus(c echo.Context) error {
 	return SendOK(c, response, message)
 }
 
+// UpdateBookingAdminNotes godoc
+// @Summary Update booking admin notes (Admin)
+// @Description Update the internal admin notes for a booking without changing its status (admin only)
+// @Tags admin-bookings
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param Authorization header string true "Bearer token"
+// @Param id path string true "Booking ID"
+// @Param request body dto.UpdateAdminNotesRequest true "Admin notes data"
+// @Success 200 {object} dto.ApiResponse{data=dto.BookingResponse}
+// @Failure 400 {object} dto.ApiResponse
+// @Failure 401 {object} dto.ApiResponse
+// @Failure 404 {object} dto.ApiResponse
+// @Failure 500 {object} dto.ApiResponse
+// @Router /api/admin/bookings/{id}/notes [patch]
+func (h *AdminHandler) UpdateBookingAdminNotes(c echo.Context) error {
+	id := c.Param("id")
+	if id == "" {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid booking ID")
+	}
+
+	var req dto.UpdateAdminNotesRequest
+	if err := c.Bind(&req); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid request body")
+	}
+
+	booking, err := h.bookingService.UpdateAdminNotes(c.Request().Context(), id, &req)
+	if err != nil {
+		if contains(err.Error(), "not found") {
+			return echo.NewHTTPError(http.StatusNotFound, err.Error())
+		}
+		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
+	}
+
+	return SendOK(c, booking, "Admin notes updated successfully")
+}
+
 // ================================================================================
 // Helper Functions
 // ================================================================================

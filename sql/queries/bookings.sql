@@ -41,6 +41,14 @@ SET
 WHERE id = $1::varchar
 RETURNING *;
 
+-- name: UpdateBookingAdminNotes :one
+UPDATE bookings
+SET
+    admin_notes = $2,
+    updated_at  = NOW()
+WHERE id = $1::varchar
+RETURNING *;
+
 -- name: UpdateBookingPaymentScreenshot :one
 UPDATE bookings
 SET
