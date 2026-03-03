@@ -207,6 +207,17 @@ func (r *BookingRepository) UpdateStatus(ctx context.Context, id string, status 
 	return err
 }
 
+// UpdateAdminNotes updates only the admin_notes field of a booking
+func (r *BookingRepository) UpdateAdminNotes(ctx context.Context, id string, adminNotes string) error {
+	params := sqlc.UpdateBookingAdminNotesParams{
+		Column1:    id,
+		AdminNotes: StringPtr(adminNotes),
+	}
+
+	_, err := r.queries.UpdateBookingAdminNotes(ctx, params)
+	return err
+}
+
 // UpdatePaymentScreenshot updates the payment screenshot URL
 func (r *BookingRepository) UpdatePaymentScreenshot(ctx context.Context, id string, url string) error {
 	params := sqlc.UpdateBookingPaymentScreenshotParams{
