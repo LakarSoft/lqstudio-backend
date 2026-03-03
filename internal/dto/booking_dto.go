@@ -62,8 +62,9 @@ type BookingResponse struct {
 	Status               string              `json:"status"` // PENDING | APPROVED | REJECTED | COMPLETED
 	TotalPrice           float64             `json:"totalPrice"`
 	PaymentScreenshotURL string              `json:"paymentScreenshotUrl,omitempty"`
-	CreatedAt            string              `json:"createdAt"` // ISO 8601 datetime
-	UpdatedAt            string              `json:"updatedAt"` // ISO 8601 datetime
+	AdminNotes           string              `json:"adminNotes,omitempty"` // Admin-only notes for this booking
+	CreatedAt            string              `json:"createdAt"`            // ISO 8601 datetime
+	UpdatedAt            string              `json:"updatedAt"`            // ISO 8601 datetime
 }
 
 // SlotResponse represents a booked slot in responses
@@ -114,7 +115,7 @@ type UpdateBookingStatusRequest struct {
 // UpdateBookingStatusResponse extends BookingResponse with email notification status
 // Used to inform admin if customer notification email was sent successfully
 type UpdateBookingStatusResponse struct {
-	Booking              *BookingResponse `json:"booking"`
+	Booking               *BookingResponse `json:"booking"`
 	EmailNotificationSent bool             `json:"emailNotificationSent"`
 	EmailError            string           `json:"emailError,omitempty"`
 }
@@ -225,6 +226,7 @@ func ToBookingResponse(booking *models.Booking) *BookingResponse {
 		Status:               string(booking.Status),
 		TotalPrice:           totalPrice,
 		PaymentScreenshotURL: paymentURL,
+		AdminNotes:           booking.AdminNotes,
 		CreatedAt:            booking.CreatedAt.Format(time.RFC3339),
 		UpdatedAt:            booking.UpdatedAt.Format(time.RFC3339),
 	}
