@@ -435,6 +435,31 @@ func (s *BookingService) UpdatePaymentScreenshot(ctx context.Context, bookingID 
 	return dto.ToBookingResponse(booking), nil
 }
 
+// UpdateAdminNotes updates only the admin notes for a booking
+func (s *BookingService) UpdateAdminNotes(ctx context.Context, bookingID string, req *dto.UpdateAdminNotesRequest) (*dto.BookingResponse, error) {
+	// Check booking exists
+	_, err := s.bookingRepo.GetByID(ctx, bookingID)
+	if err != nil {
+		if stderr.Is(err, pgx.ErrNoRows) {
+			return nil, errors.NewBookingNotFoundError(bookingID)
+		}
+		return nil, errors.NewDatabaseError("get booking", err)
+	}
+
+	// Update admin notes
+	if err := s.bookingRepo.UpdateAdminNotes(ctx, bookingID, req.AdminNotes); err != nil {
+		return nil, errors.NewDatabaseError("update admin notes", err)
+	}
+
+	// Get updated booking with slots and addons
+	booking, err := s.bookingRepo.GetByID(ctx, bookingID)
+	if err != nil {
+		return nil, errors.NewDatabaseError("get updated booking", err)
+	}
+
+	return dto.ToBookingResponse(booking), nil
+}
+
 // UpdateBooking updates a booking's slots, addons, and customer info.
 // Only PENDING and APPROVED bookings can be updated.
 // The packageId is read from the existing booking — it cannot change.

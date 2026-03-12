@@ -106,6 +106,9 @@ definitions:
         items:
           $ref: '#/definitions/dto.AddonItemResponse'
         type: array
+      adminNotes:
+        description: Admin-only notes for this booking
+        type: string
       createdAt:
         description: ISO 8601 datetime
         type: string
@@ -338,6 +341,11 @@ definitions:
     - id
     - name
     - price
+    type: object
+  dto.UpdateAdminNotesRequest:
+    properties:
+      adminNotes:
+        type: string
     type: object
   dto.UpdateBookingRequest:
     properties:
@@ -812,11 +820,11 @@ paths:
         in: query
         name: slotDate
         type: string
-      - description: Filter bookings created from this date (YYYY-MM-DD)
+      - description: Filter by slot date from (YYYY-MM-DD)
         in: query
         name: dateFrom
         type: string
-      - description: Filter bookings created up to this date (YYYY-MM-DD)
+      - description: Filter by slot date to (YYYY-MM-DD)
         in: query
         name: dateTo
         type: string
@@ -1005,6 +1013,62 @@ paths:
       summary: Update booking (admin)
       tags:
       - admin
+  /api/admin/bookings/{id}/notes:
+    patch:
+      consumes:
+      - application/json
+      description: Update the internal admin notes for a booking without changing
+        its status (admin only)
+      parameters:
+      - description: Bearer token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Booking ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Admin notes data
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.UpdateAdminNotesRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/dto.ApiResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/dto.BookingResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.ApiResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.ApiResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/dto.ApiResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.ApiResponse'
+      security:
+      - BearerAuth: []
+      summary: Update booking admin notes (Admin)
+      tags:
+      - admin-bookings
   /api/admin/bookings/{id}/status:
     patch:
       consumes:

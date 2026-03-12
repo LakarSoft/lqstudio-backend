@@ -573,13 +573,13 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "Filter bookings created from this date (YYYY-MM-DD)",
+                        "description": "Filter by slot date from (YYYY-MM-DD)",
                         "name": "dateFrom",
                         "in": "query"
                     },
                     {
                         "type": "string",
-                        "description": "Filter bookings created up to this date (YYYY-MM-DD)",
+                        "description": "Filter by slot date to (YYYY-MM-DD)",
                         "name": "dateTo",
                         "in": "query"
                     },
@@ -833,6 +833,95 @@ const docTemplate = `{
                     },
                     "422": {
                         "description": "Booking is in a terminal status (REJECTED or COMPLETED)",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ApiResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ApiResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/admin/bookings/{id}/notes": {
+            "patch": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Update the internal admin notes for a booking without changing its status (admin only)",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admin-bookings"
+                ],
+                "summary": "Update booking admin notes (Admin)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Bearer token",
+                        "name": "Authorization",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Booking ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Admin notes data",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.UpdateAdminNotesRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/dto.ApiResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/dto.BookingResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ApiResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ApiResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
                         "schema": {
                             "$ref": "#/definitions/dto.ApiResponse"
                         }
@@ -2632,6 +2721,10 @@ const docTemplate = `{
                         "$ref": "#/definitions/dto.AddonItemResponse"
                     }
                 },
+                "adminNotes": {
+                    "description": "Admin-only notes for this booking",
+                    "type": "string"
+                },
                 "createdAt": {
                     "description": "ISO 8601 datetime",
                     "type": "string"
@@ -2963,6 +3056,14 @@ const docTemplate = `{
                     "minimum": 0
                 },
                 "unit": {
+                    "type": "string"
+                }
+            }
+        },
+        "dto.UpdateAdminNotesRequest": {
+            "type": "object",
+            "properties": {
+                "adminNotes": {
                     "type": "string"
                 }
             }

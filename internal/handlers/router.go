@@ -131,6 +131,8 @@ func (r *Router) Setup() *echo.Echo {
 	admin.GET("/bookings/:id", r.adminHandler.GetBooking)
 	// PATCH /api/admin/bookings/:id/status
 	admin.PATCH("/bookings/:id/status", r.adminHandler.UpdateBookingStatus)
+	// PATCH /api/admin/bookings/:id/notes
+	admin.PATCH("/bookings/:id/notes", r.adminHandler.UpdateBookingAdminNotes)
 	admin.PUT("/bookings/:id", r.bookingHandler.UpdateBooking)
 
 	return r.echo
