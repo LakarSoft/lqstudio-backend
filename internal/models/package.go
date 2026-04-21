@@ -1,6 +1,7 @@
 package models
 
 import (
+	"strings"
 	"time"
 
 	"github.com/shopspring/decimal"
@@ -9,6 +10,7 @@ import (
 // Package represents a booking package
 type Package struct {
 	ID              string          `json:"id"`
+	Module          string          `json:"module"`
 	Name            string          `json:"name"`
 	Description     string          `json:"description"`
 	Offers          []string        `json:"offers"`
@@ -45,6 +47,10 @@ func (p *Package) RequiredSlots() int {
 
 // ValidatePackage checks if package data is valid
 func (p *Package) ValidatePackage() error {
+	p.Module = strings.TrimSpace(strings.ToLower(p.Module))
+	if p.Module == "" {
+		return ErrInvalidModule
+	}
 	if p.DurationMinutes <= 0 || p.DurationMinutes%20 != 0 {
 		return ErrInvalidDuration
 	}
@@ -59,6 +65,7 @@ func (p *Package) ValidatePackage() error {
 
 // Errors
 var (
+	ErrInvalidModule   = NewValidationError("module is required")
 	ErrInvalidDuration = NewValidationError("duration must be a positive multiple of 20 minutes")
 	ErrInvalidPrice    = NewValidationError("price cannot be negative")
 	ErrInvalidDiscount = NewValidationError("discount must be between 0 and 100")

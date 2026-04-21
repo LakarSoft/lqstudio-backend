@@ -92,6 +92,12 @@ const docTemplate = `{
                         "name": "Authorization",
                         "in": "header",
                         "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter packages by module",
+                        "name": "module",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -2372,6 +2378,14 @@ const docTemplate = `{
                     "packages"
                 ],
                 "summary": "Get active packages",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Filter active packages by module",
+                        "name": "module",
+                        "in": "query"
+                    }
+                ],
                 "responses": {
                     "200": {
                         "description": "OK",
@@ -2792,6 +2806,7 @@ const docTemplate = `{
             "required": [
                 "durationMinutes",
                 "id",
+                "module",
                 "name",
                 "price"
             ],
@@ -2813,6 +2828,9 @@ const docTemplate = `{
                     "maxLength": 50
                 },
                 "imageUrl": {
+                    "type": "string"
+                },
+                "module": {
                     "type": "string"
                 },
                 "name": {
@@ -2920,6 +2938,9 @@ const docTemplate = `{
                 },
                 "isActive": {
                     "type": "boolean"
+                },
+                "module": {
+                    "type": "string"
                 },
                 "name": {
                     "type": "string"
@@ -3133,6 +3154,7 @@ const docTemplate = `{
             "required": [
                 "durationMinutes",
                 "id",
+                "module",
                 "name",
                 "price"
             ],
@@ -3158,6 +3180,9 @@ const docTemplate = `{
                 },
                 "isActive": {
                     "type": "boolean"
+                },
+                "module": {
+                    "type": "string"
                 },
                 "name": {
                     "type": "string"

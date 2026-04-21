@@ -90,6 +90,12 @@
                         "name": "Authorization",
                         "in": "header",
                         "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter packages by module",
+                        "name": "module",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -2370,6 +2376,14 @@
                     "packages"
                 ],
                 "summary": "Get active packages",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Filter active packages by module",
+                        "name": "module",
+                        "in": "query"
+                    }
+                ],
                 "responses": {
                     "200": {
                         "description": "OK",
@@ -2790,6 +2804,7 @@
             "required": [
                 "durationMinutes",
                 "id",
+                "module",
                 "name",
                 "price"
             ],
@@ -2811,6 +2826,9 @@
                     "maxLength": 50
                 },
                 "imageUrl": {
+                    "type": "string"
+                },
+                "module": {
                     "type": "string"
                 },
                 "name": {
@@ -2918,6 +2936,9 @@
                 },
                 "isActive": {
                     "type": "boolean"
+                },
+                "module": {
+                    "type": "string"
                 },
                 "name": {
                     "type": "string"
@@ -3131,6 +3152,7 @@
             "required": [
                 "durationMinutes",
                 "id",
+                "module",
                 "name",
                 "price"
             ],
@@ -3156,6 +3178,9 @@
                 },
                 "isActive": {
                     "type": "boolean"
+                },
+                "module": {
+                    "type": "string"
                 },
                 "name": {
                     "type": "string"

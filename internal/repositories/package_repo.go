@@ -3,6 +3,7 @@ package repositories
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"lqstudio-backend/internal/database/sqlc"
 	"lqstudio-backend/internal/models"
@@ -28,8 +29,8 @@ func (r *PackageRepository) GetByID(ctx context.Context, id string) (*models.Pac
 }
 
 // GetActive retrieves all active packages
-func (r *PackageRepository) GetActive(ctx context.Context) ([]*models.Package, error) {
-	rows, err := r.queries.GetActivePackages(ctx)
+func (r *PackageRepository) GetActive(ctx context.Context, module string) ([]*models.Package, error) {
+	rows, err := r.queries.GetActivePackages(ctx, normalizeModuleFilter(module))
 	if err != nil {
 		return nil, err
 	}
@@ -37,8 +38,8 @@ func (r *PackageRepository) GetActive(ctx context.Context) ([]*models.Package, e
 }
 
 // ListAll retrieves all packages
-func (r *PackageRepository) ListAll(ctx context.Context) ([]*models.Package, error) {
-	rows, err := r.queries.ListAllPackages(ctx)
+func (r *PackageRepository) ListAll(ctx context.Context, module string) ([]*models.Package, error) {
+	rows, err := r.queries.ListAllPackages(ctx, normalizeModuleFilter(module))
 	if err != nil {
 		return nil, err
 	}
@@ -55,6 +56,7 @@ func (r *PackageRepository) Create(ctx context.Context, pkg *models.Package) err
 
 	params := sqlc.CreatePackageParams{
 		ID:              pkg.ID,
+		Module:          pkg.Module,
 		Name:            pkg.Name,
 		Description:     StringPtr(pkg.Description),
 		DurationMinutes: pkg.DurationMinutes,
@@ -89,6 +91,7 @@ func (r *PackageRepository) Update(ctx context.Context, pkg *models.Package) err
 
 	params := sqlc.UpdatePackageParams{
 		Column1:         pkg.ID,
+		Module:          pkg.Module,
 		Name:            pkg.Name,
 		Description:     StringPtr(pkg.Description),
 		DurationMinutes: pkg.DurationMinutes,
@@ -152,6 +155,7 @@ func (r *PackageRepository) toModel(row sqlc.Package) (*models.Package, error) {
 
 	return &models.Package{
 		ID:              row.ID,
+		Module:          row.Module,
 		Name:            row.Name,
 		Description:     StringVal(row.Description),
 		DurationMinutes: row.DurationMinutes,
@@ -175,4 +179,8 @@ func (r *PackageRepository) toModels(rows []sqlc.Package) ([]*models.Package, er
 		packages[i] = pkg
 	}
 	return packages, nil
+}
+
+func normalizeModuleFilter(module string) string {
+	return strings.TrimSpace(strings.ToLower(module))
 }

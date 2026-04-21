@@ -168,6 +168,8 @@ definitions:
         type: string
       imageUrl:
         type: string
+      module:
+        type: string
       name:
         type: string
       offers:
@@ -180,6 +182,7 @@ definitions:
     required:
     - durationMinutes
     - id
+    - module
     - name
     - price
     type: object
@@ -246,6 +249,8 @@ definitions:
         type: string
       isActive:
         type: boolean
+      module:
+        type: string
       name:
         type: string
       offers:
@@ -406,6 +411,8 @@ definitions:
         type: string
       isActive:
         type: boolean
+      module:
+        type: string
       name:
         type: string
       offers:
@@ -418,6 +425,7 @@ definitions:
     required:
     - durationMinutes
     - id
+    - module
     - name
     - price
     type: object
@@ -1174,6 +1182,10 @@ paths:
         in: header
         name: Authorization
         required: true
+        type: string
+      - description: Filter packages by module
+        in: query
+        name: module
         type: string
       produces:
       - application/json
@@ -1985,6 +1997,11 @@ paths:
       consumes:
       - application/json
       description: Get list of all active packages available for booking
+      parameters:
+      - description: Filter active packages by module
+        in: query
+        name: module
+        type: string
       produces:
       - application/json
       responses:

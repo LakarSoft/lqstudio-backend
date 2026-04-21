@@ -19,6 +19,7 @@ CREATE INDEX idx_users_email ON users(email);
 -- Packages table
 CREATE TABLE packages (
     id VARCHAR(255) PRIMARY KEY,
+    module VARCHAR(50) NOT NULL DEFAULT 'raya',
     name VARCHAR(255) NOT NULL,
     description TEXT,
     duration_minutes INTEGER NOT NULL DEFAULT 20,

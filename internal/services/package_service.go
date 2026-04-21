@@ -28,8 +28,8 @@ func (s *PackageService) GetByID(ctx context.Context, id string) (*dto.PackageRe
 }
 
 // GetActive retrieves active packages for customers
-func (s *PackageService) GetActive(ctx context.Context) ([]*dto.PackageResponse, error) {
-	packages, err := s.packageRepo.GetActive(ctx)
+func (s *PackageService) GetActive(ctx context.Context, module string) ([]*dto.PackageResponse, error) {
+	packages, err := s.packageRepo.GetActive(ctx, module)
 	if err != nil {
 		return nil, err
 	}
@@ -38,8 +38,8 @@ func (s *PackageService) GetActive(ctx context.Context) ([]*dto.PackageResponse,
 }
 
 // ListAll retrieves all packages (admin)
-func (s *PackageService) ListAll(ctx context.Context) ([]*dto.PackageResponse, error) {
-	packages, err := s.packageRepo.ListAll(ctx)
+func (s *PackageService) ListAll(ctx context.Context, module string) ([]*dto.PackageResponse, error) {
+	packages, err := s.packageRepo.ListAll(ctx, module)
 	if err != nil {
 		return nil, err
 	}

@@ -48,11 +48,12 @@ func NewAdminHandler(
 // @Tags packages
 // @Accept json
 // @Produce json
+// @Param module query string false "Filter active packages by module"
 // @Success 200 {object} dto.ApiResponse{data=[]dto.PackageResponse}
 // @Failure 500 {object} dto.ApiResponse
 // @Router /api/packages [get]
 func (h *AdminHandler) GetActivePackages(c echo.Context) error {
-	packages, err := h.packageService.GetActive(c.Request().Context())
+	packages, err := h.packageService.GetActive(c.Request().Context(), c.QueryParam("module"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
 	}
@@ -108,12 +109,13 @@ func (h *AdminHandler) GetActiveAddons(c echo.Context) error {
 // @Produce json
 // @Security BearerAuth
 // @Param Authorization header string true "Bearer token"
+// @Param module query string false "Filter packages by module"
 // @Success 200 {object} dto.ApiResponse{data=[]dto.PackageResponse}
 // @Failure 401 {object} dto.ApiResponse
 // @Failure 500 {object} dto.ApiResponse
 // @Router /api/admin/packages [get]
 func (h *AdminHandler) GetAllPackages(c echo.Context) error {
-	packages, err := h.packageService.ListAll(c.Request().Context())
+	packages, err := h.packageService.ListAll(c.Request().Context(), c.QueryParam("module"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
 	}
