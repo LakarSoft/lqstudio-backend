@@ -10,6 +10,7 @@ import (
 // Matches the frontend Theme entity structure with camelCase JSON tags
 type ThemeResponse struct {
 	ID          string  `json:"id"`
+	Module      string  `json:"module"`
 	Name        string  `json:"name"`
 	Description string  `json:"description"`
 	ImageURL    string  `json:"imageUrl"`
@@ -21,6 +22,7 @@ type ThemeResponse struct {
 // Matches the frontend expectations with camelCase JSON tags
 type CreateThemeRequest struct {
 	ID          string  `json:"id" validate:"required,max=50"`
+	Module      string  `json:"module" validate:"required"`
 	Name        string  `json:"name" validate:"required"`
 	Description string  `json:"description" validate:"required"`
 	ImageURL    string  `json:"imageUrl" validate:"required"`
@@ -31,6 +33,7 @@ type CreateThemeRequest struct {
 // Matches the frontend expectations with camelCase JSON tags
 type UpdateThemeRequest struct {
 	ID          string  `json:"id" validate:"required,max=50"`
+	Module      string  `json:"module" validate:"required"`
 	Name        string  `json:"name" validate:"required"`
 	Description string  `json:"description" validate:"required"`
 	ImageURL    string  `json:"imageUrl" validate:"required"`
@@ -50,6 +53,7 @@ func ToThemeResponse(theme *models.Theme) *ThemeResponse {
 
 	return &ThemeResponse{
 		ID:          theme.ID,
+		Module:      theme.Module,
 		Name:        theme.Name,
 		Description: theme.Description,
 		ImageURL:    theme.ImageURL,
@@ -76,6 +80,7 @@ func ToThemesResponse(themes []*models.Theme) []*ThemeResponse {
 func (r *CreateThemeRequest) ToThemeModel() *models.Theme {
 	return &models.Theme{
 		ID:          r.ID,
+		Module:      r.Module,
 		Name:        r.Name,
 		Description: r.Description,
 		ImageURL:    r.ImageURL,
@@ -89,6 +94,7 @@ func (r *CreateThemeRequest) ToThemeModel() *models.Theme {
 func (r *UpdateThemeRequest) ToThemeModel() *models.Theme {
 	return &models.Theme{
 		ID:          r.ID,
+		Module:      r.Module,
 		Name:        r.Name,
 		Description: r.Description,
 		ImageURL:    r.ImageURL,

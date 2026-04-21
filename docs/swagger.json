@@ -1646,6 +1646,12 @@
                         "name": "Authorization",
                         "in": "header",
                         "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter themes by module",
+                        "name": "module",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -2428,6 +2434,14 @@
                     "themes"
                 ],
                 "summary": "Get active themes",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Filter active themes by module",
+                        "name": "module",
+                        "in": "query"
+                    }
+                ],
                 "responses": {
                     "200": {
                         "description": "OK",
@@ -2852,6 +2866,7 @@
                 "description",
                 "id",
                 "imageUrl",
+                "module",
                 "name"
             ],
             "properties": {
@@ -2863,6 +2878,9 @@
                     "maxLength": 50
                 },
                 "imageUrl": {
+                    "type": "string"
+                },
+                "module": {
                     "type": "string"
                 },
                 "name": {
@@ -3040,6 +3058,9 @@
                 "isActive": {
                     "type": "boolean"
                 },
+                "module": {
+                    "type": "string"
+                },
                 "name": {
                     "type": "string"
                 },
@@ -3203,6 +3224,7 @@
                 "description",
                 "id",
                 "imageUrl",
+                "module",
                 "name"
             ],
             "properties": {
@@ -3218,6 +3240,9 @@
                 },
                 "isActive": {
                     "type": "boolean"
+                },
+                "module": {
+                    "type": "string"
                 },
                 "name": {
                     "type": "string"

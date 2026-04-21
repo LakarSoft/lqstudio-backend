@@ -195,6 +195,8 @@ definitions:
         type: string
       imageUrl:
         type: string
+      module:
+        type: string
       name:
         type: string
       price:
@@ -204,6 +206,7 @@ definitions:
     - description
     - id
     - imageUrl
+    - module
     - name
     type: object
   dto.CustomerInfo:
@@ -320,6 +323,8 @@ definitions:
         type: string
       isActive:
         type: boolean
+      module:
+        type: string
       name:
         type: string
       price:
@@ -440,6 +445,8 @@ definitions:
         type: string
       isActive:
         type: boolean
+      module:
+        type: string
       name:
         type: string
       price:
@@ -449,6 +456,7 @@ definitions:
     - description
     - id
     - imageUrl
+    - module
     - name
     type: object
   handlers.LoginRequest:
@@ -1513,6 +1521,10 @@ paths:
         name: Authorization
         required: true
         type: string
+      - description: Filter themes by module
+        in: query
+        name: module
+        type: string
       produces:
       - application/json
       responses:
@@ -2030,6 +2042,11 @@ paths:
       description: Get list of all active themes available for booking
       produces:
       - application/json
+      parameters:
+      - description: Filter active themes by module
+        in: query
+        name: module
+        type: string
       responses:
         "200":
           description: OK

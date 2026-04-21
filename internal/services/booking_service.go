@@ -82,7 +82,7 @@ func (s *BookingService) CreateBooking(ctx context.Context, req *dto.BookingRequ
 		}
 
 		// Fetch all active themes
-		activeThemes, err := s.themeRepo.GetActive(ctx)
+		activeThemes, err := s.themeRepo.GetActive(ctx, "")
 		if err != nil {
 			return nil, errors.NewDatabaseError("get active themes", err)
 		}
@@ -510,7 +510,7 @@ func (s *BookingService) UpdateBooking(ctx context.Context, bookingID string, re
 			}
 		}
 
-		activeThemes, err := s.themeRepo.GetActive(ctx)
+		activeThemes, err := s.themeRepo.GetActive(ctx, "")
 		if err != nil {
 			return nil, errors.NewDatabaseError("get active themes", err)
 		}
@@ -746,7 +746,7 @@ func (s *BookingService) GetAvailability(ctx context.Context, req *dto.Availabil
 // If even one theme is booked at a time slot, it shows as unavailable
 func (s *BookingService) getAvailabilityForAllThemes(ctx context.Context, req *dto.AvailabilityRequest) (*dto.AvailabilityResponse, error) {
 	// Get all active themes
-	activeThemes, err := s.themeRepo.GetActive(ctx)
+	activeThemes, err := s.themeRepo.GetActive(ctx, "")
 	if err != nil {
 		return nil, errors.NewDatabaseError("get active themes", err)
 	}

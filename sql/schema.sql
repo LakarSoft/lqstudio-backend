@@ -35,6 +35,7 @@ CREATE TABLE packages (
 -- Themes table
 CREATE TABLE themes (
     id VARCHAR(255) PRIMARY KEY,
+    module VARCHAR(50) NOT NULL DEFAULT 'raya',
     name VARCHAR(255) NOT NULL,
     description TEXT NOT NULL DEFAULT '',
     image_url TEXT NOT NULL DEFAULT '',

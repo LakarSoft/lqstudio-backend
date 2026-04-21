@@ -67,11 +67,12 @@ func (h *AdminHandler) GetActivePackages(c echo.Context) error {
 // @Tags themes
 // @Accept json
 // @Produce json
+// @Param module query string false "Filter active themes by module"
 // @Success 200 {object} dto.ApiResponse{data=[]dto.ThemeResponse}
 // @Failure 500 {object} dto.ApiResponse
 // @Router /api/themes [get]
 func (h *AdminHandler) GetActiveThemes(c echo.Context) error {
-	themes, err := h.themeService.GetActive(c.Request().Context())
+	themes, err := h.themeService.GetActive(c.Request().Context(), c.QueryParam("module"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
 	}
@@ -359,12 +360,13 @@ func (h *AdminHandler) UploadPackageImage(c echo.Context) error {
 // @Produce json
 // @Security BearerAuth
 // @Param Authorization header string true "Bearer token"
+// @Param module query string false "Filter themes by module"
 // @Success 200 {object} dto.ApiResponse{data=[]dto.ThemeResponse}
 // @Failure 401 {object} dto.ApiResponse
 // @Failure 500 {object} dto.ApiResponse
 // @Router /api/admin/themes [get]
 func (h *AdminHandler) GetAllThemes(c echo.Context) error {
-	themes, err := h.themeService.ListAll(c.Request().Context())
+	themes, err := h.themeService.ListAll(c.Request().Context(), c.QueryParam("module"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
 	}

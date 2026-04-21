@@ -68,6 +68,7 @@ type Package struct {
 
 type Theme struct {
 	ID          string             `json:"id"`
+	Module      string             `json:"module"`
 	Name        string             `json:"name"`
 	Description string             `json:"description"`
 	ImageUrl    string             `json:"image_url"`

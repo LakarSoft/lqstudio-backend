@@ -13,14 +13,15 @@ import (
 
 const createTheme = `-- name: CreateTheme :one
 INSERT INTO themes (
-    id, name, description, image_url, price, is_active
+    id, module, name, description, image_url, price, is_active
 ) VALUES (
-    $1, $2, $3, $4, $5, $6
-) RETURNING id, name, description, image_url, price, is_active, created_at, updated_at
+    $1, $2, $3, $4, $5, $6, $7
+) RETURNING id, module, name, description, image_url, price, is_active, created_at, updated_at
 `
 
 type CreateThemeParams struct {
 	ID          string         `json:"id"`
+	Module      string         `json:"module"`
 	Name        string         `json:"name"`
 	Description string         `json:"description"`
 	ImageUrl    string         `json:"image_url"`
@@ -31,6 +32,7 @@ type CreateThemeParams struct {
 func (q *Queries) CreateTheme(ctx context.Context, arg CreateThemeParams) (Theme, error) {
 	row := q.db.QueryRow(ctx, createTheme,
 		arg.ID,
+		arg.Module,
 		arg.Name,
 		arg.Description,
 		arg.ImageUrl,
@@ -40,6 +42,7 @@ func (q *Queries) CreateTheme(ctx context.Context, arg CreateThemeParams) (Theme
 	var i Theme
 	err := row.Scan(
 		&i.ID,
+		&i.Module,
 		&i.Name,
 		&i.Description,
 		&i.ImageUrl,
@@ -61,13 +64,14 @@ func (q *Queries) DeleteTheme(ctx context.Context, dollar_1 string) error {
 }
 
 const getActiveThemes = `-- name: GetActiveThemes :many
-SELECT id, name, description, image_url, price, is_active, created_at, updated_at FROM themes
+SELECT id, module, name, description, image_url, price, is_active, created_at, updated_at FROM themes
 WHERE is_active = true
-ORDER BY name ASC
+  AND ($1::text = '' OR module = $1)
+ORDER BY module ASC, name ASC
 `
 
-func (q *Queries) GetActiveThemes(ctx context.Context) ([]Theme, error) {
-	rows, err := q.db.Query(ctx, getActiveThemes)
+func (q *Queries) GetActiveThemes(ctx context.Context, dollar_1 string) ([]Theme, error) {
+	rows, err := q.db.Query(ctx, getActiveThemes, dollar_1)
 	if err != nil {
 		return nil, err
 	}
@@ -77,6 +81,7 @@ func (q *Queries) GetActiveThemes(ctx context.Context) ([]Theme, error) {
 		var i Theme
 		if err := rows.Scan(
 			&i.ID,
+			&i.Module,
 			&i.Name,
 			&i.Description,
 			&i.ImageUrl,
@@ -96,7 +101,7 @@ func (q *Queries) GetActiveThemes(ctx context.Context) ([]Theme, error) {
 }
 
 const getThemeByID = `-- name: GetThemeByID :one
-SELECT id, name, description, image_url, price, is_active, created_at, updated_at FROM themes
+SELECT id, module, name, description, image_url, price, is_active, created_at, updated_at FROM themes
 WHERE id = $1::varchar LIMIT 1
 `
 
@@ -105,6 +110,7 @@ func (q *Queries) GetThemeByID(ctx context.Context, dollar_1 string) (Theme, err
 	var i Theme
 	err := row.Scan(
 		&i.ID,
+		&i.Module,
 		&i.Name,
 		&i.Description,
 		&i.ImageUrl,
@@ -117,12 +123,13 @@ func (q *Queries) GetThemeByID(ctx context.Context, dollar_1 string) (Theme, err
 }
 
 const listAllThemes = `-- name: ListAllThemes :many
-SELECT id, name, description, image_url, price, is_active, created_at, updated_at FROM themes
-ORDER BY name ASC
+SELECT id, module, name, description, image_url, price, is_active, created_at, updated_at FROM themes
+WHERE ($1::text = '' OR module = $1)
+ORDER BY module ASC, created_at DESC
 `
 
-func (q *Queries) ListAllThemes(ctx context.Context) ([]Theme, error) {
-	rows, err := q.db.Query(ctx, listAllThemes)
+func (q *Queries) ListAllThemes(ctx context.Context, dollar_1 string) ([]Theme, error) {
+	rows, err := q.db.Query(ctx, listAllThemes, dollar_1)
 	if err != nil {
 		return nil, err
 	}
@@ -132,6 +139,7 @@ func (q *Queries) ListAllThemes(ctx context.Context) ([]Theme, error) {
 		var i Theme
 		if err := rows.Scan(
 			&i.ID,
+			&i.Module,
 			&i.Name,
 			&i.Description,
 			&i.ImageUrl,
@@ -155,7 +163,7 @@ UPDATE themes
 SET is_active = NOT is_active,
     updated_at = NOW()
 WHERE id = $1::varchar
-RETURNING id, name, description, image_url, price, is_active, created_at, updated_at
+RETURNING id, module, name, description, image_url, price, is_active, created_at, updated_at
 `
 
 func (q *Queries) ToggleThemeActive(ctx context.Context, dollar_1 string) (Theme, error) {
@@ -163,6 +171,7 @@ func (q *Queries) ToggleThemeActive(ctx context.Context, dollar_1 string) (Theme
 	var i Theme
 	err := row.Scan(
 		&i.ID,
+		&i.Module,
 		&i.Name,
 		&i.Description,
 		&i.ImageUrl,
@@ -177,18 +186,20 @@ func (q *Queries) ToggleThemeActive(ctx context.Context, dollar_1 string) (Theme
 const updateTheme = `-- name: UpdateTheme :one
 UPDATE themes
 SET
-    name = $2,
-    description = $3,
-    image_url = $4,
-    price = $5,
-    is_active = $6,
+    module = $2,
+    name = $3,
+    description = $4,
+    image_url = $5,
+    price = $6,
+    is_active = $7,
     updated_at = NOW()
 WHERE id = $1::varchar
-RETURNING id, name, description, image_url, price, is_active, created_at, updated_at
+RETURNING id, module, name, description, image_url, price, is_active, created_at, updated_at
 `
 
 type UpdateThemeParams struct {
 	Column1     string         `json:"column_1"`
+	Module      string         `json:"module"`
 	Name        string         `json:"name"`
 	Description string         `json:"description"`
 	ImageUrl    string         `json:"image_url"`
@@ -199,6 +210,7 @@ type UpdateThemeParams struct {
 func (q *Queries) UpdateTheme(ctx context.Context, arg UpdateThemeParams) (Theme, error) {
 	row := q.db.QueryRow(ctx, updateTheme,
 		arg.Column1,
+		arg.Module,
 		arg.Name,
 		arg.Description,
 		arg.ImageUrl,
@@ -208,6 +220,7 @@ func (q *Queries) UpdateTheme(ctx context.Context, arg UpdateThemeParams) (Theme
 	var i Theme
 	err := row.Scan(
 		&i.ID,
+		&i.Module,
 		&i.Name,
 		&i.Description,
 		&i.ImageUrl,
@@ -225,7 +238,7 @@ SET
     image_url = $2,
     updated_at = NOW()
 WHERE id = $1::varchar
-RETURNING id, name, description, image_url, price, is_active, created_at, updated_at
+RETURNING id, module, name, description, image_url, price, is_active, created_at, updated_at
 `
 
 type UpdateThemeImageURLParams struct {
@@ -238,6 +251,7 @@ func (q *Queries) UpdateThemeImageURL(ctx context.Context, arg UpdateThemeImageU
 	var i Theme
 	err := row.Scan(
 		&i.ID,
+		&i.Module,
 		&i.Name,
 		&i.Description,
 		&i.ImageUrl,

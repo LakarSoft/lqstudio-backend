@@ -5,27 +5,30 @@ WHERE id = $1::varchar LIMIT 1;
 -- name: GetActiveThemes :many
 SELECT * FROM themes
 WHERE is_active = true
-ORDER BY name ASC;
+  AND ($1::text = '' OR module = $1)
+ORDER BY module ASC, name ASC;
 
 -- name: ListAllThemes :many
 SELECT * FROM themes
-ORDER BY name ASC;
+WHERE ($1::text = '' OR module = $1)
+ORDER BY module ASC, created_at DESC;
 
 -- name: CreateTheme :one
 INSERT INTO themes (
-    id, name, description, image_url, price, is_active
+    id, module, name, description, image_url, price, is_active
 ) VALUES (
-    $1, $2, $3, $4, $5, $6
+    $1, $2, $3, $4, $5, $6, $7
 ) RETURNING *;
 
 -- name: UpdateTheme :one
 UPDATE themes
 SET
-    name = $2,
-    description = $3,
-    image_url = $4,
-    price = $5,
-    is_active = $6,
+    module = $2,
+    name = $3,
+    description = $4,
+    image_url = $5,
+    price = $6,
+    is_active = $7,
     updated_at = NOW()
 WHERE id = $1::varchar
 RETURNING *;
