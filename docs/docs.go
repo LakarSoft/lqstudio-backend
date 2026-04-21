@@ -29,6 +29,14 @@ const docTemplate = `{
                 "consumes": [
                     "application/json"
                 ],
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Filter active addons by module",
+                        "name": "module",
+                        "in": "query"
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -95,7 +103,7 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "Filter packages by module",
+                        "description": "Filter addons by module",
                         "name": "module",
                         "in": "query"
                     }
@@ -2629,6 +2637,9 @@ const docTemplate = `{
                 "id": {
                     "type": "string"
                 },
+                "module": {
+                    "type": "string"
+                },
                 "isActive": {
                     "type": "boolean"
                 },
@@ -2792,6 +2803,7 @@ const docTemplate = `{
             "type": "object",
             "required": [
                 "id",
+                "module",
                 "name",
                 "price"
             ],
@@ -2802,6 +2814,9 @@ const docTemplate = `{
                 "id": {
                     "type": "string",
                     "maxLength": 50
+                },
+                "module": {
+                    "type": "string"
                 },
                 "name": {
                     "type": "string"
@@ -3076,6 +3091,7 @@ const docTemplate = `{
             "type": "object",
             "required": [
                 "id",
+                "module",
                 "name",
                 "price"
             ],
@@ -3089,6 +3105,9 @@ const docTemplate = `{
                 },
                 "isActive": {
                     "type": "boolean"
+                },
+                "module": {
+                    "type": "string"
                 },
                 "name": {
                     "type": "string"

@@ -27,6 +27,14 @@
                 "consumes": [
                     "application/json"
                 ],
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Filter active addons by module",
+                        "name": "module",
+                        "in": "query"
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -93,7 +101,7 @@
                     },
                     {
                         "type": "string",
-                        "description": "Filter packages by module",
+                        "description": "Filter addons by module",
                         "name": "module",
                         "in": "query"
                     }
@@ -2627,6 +2635,9 @@
                 "id": {
                     "type": "string"
                 },
+                "module": {
+                    "type": "string"
+                },
                 "isActive": {
                     "type": "boolean"
                 },
@@ -2790,6 +2801,7 @@
             "type": "object",
             "required": [
                 "id",
+                "module",
                 "name",
                 "price"
             ],
@@ -2800,6 +2812,9 @@
                 "id": {
                     "type": "string",
                     "maxLength": 50
+                },
+                "module": {
+                    "type": "string"
                 },
                 "name": {
                     "type": "string"
@@ -3074,6 +3089,7 @@
             "type": "object",
             "required": [
                 "id",
+                "module",
                 "name",
                 "price"
             ],
@@ -3087,6 +3103,9 @@
                 },
                 "isActive": {
                     "type": "boolean"
+                },
+                "module": {
+                    "type": "string"
                 },
                 "name": {
                     "type": "string"

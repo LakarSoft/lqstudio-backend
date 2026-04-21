@@ -13,14 +13,15 @@ import (
 
 const createAddon = `-- name: CreateAddon :one
 INSERT INTO addons (
-    id, name, description, price, unit, is_active
+    id, module, name, description, price, unit, is_active
 ) VALUES (
-    $1, $2, $3, $4, $5, $6
-) RETURNING id, name, description, price, unit, is_active, created_at, updated_at
+    $1, $2, $3, $4, $5, $6, $7
+) RETURNING id, module, name, description, price, unit, is_active, created_at, updated_at
 `
 
 type CreateAddonParams struct {
 	ID          string         `json:"id"`
+	Module      string         `json:"module"`
 	Name        string         `json:"name"`
 	Description *string        `json:"description"`
 	Price       pgtype.Numeric `json:"price"`
@@ -31,6 +32,7 @@ type CreateAddonParams struct {
 func (q *Queries) CreateAddon(ctx context.Context, arg CreateAddonParams) (Addon, error) {
 	row := q.db.QueryRow(ctx, createAddon,
 		arg.ID,
+		arg.Module,
 		arg.Name,
 		arg.Description,
 		arg.Price,
@@ -40,6 +42,7 @@ func (q *Queries) CreateAddon(ctx context.Context, arg CreateAddonParams) (Addon
 	var i Addon
 	err := row.Scan(
 		&i.ID,
+		&i.Module,
 		&i.Name,
 		&i.Description,
 		&i.Price,
@@ -61,13 +64,14 @@ func (q *Queries) DeleteAddon(ctx context.Context, dollar_1 string) error {
 }
 
 const getActiveAddons = `-- name: GetActiveAddons :many
-SELECT id, name, description, price, unit, is_active, created_at, updated_at FROM addons
+SELECT id, module, name, description, price, unit, is_active, created_at, updated_at FROM addons
 WHERE is_active = true
-ORDER BY price ASC
+  AND ($1::text = '' OR module = $1)
+ORDER BY module ASC, price ASC
 `
 
-func (q *Queries) GetActiveAddons(ctx context.Context) ([]Addon, error) {
-	rows, err := q.db.Query(ctx, getActiveAddons)
+func (q *Queries) GetActiveAddons(ctx context.Context, dollar_1 string) ([]Addon, error) {
+	rows, err := q.db.Query(ctx, getActiveAddons, dollar_1)
 	if err != nil {
 		return nil, err
 	}
@@ -77,6 +81,7 @@ func (q *Queries) GetActiveAddons(ctx context.Context) ([]Addon, error) {
 		var i Addon
 		if err := rows.Scan(
 			&i.ID,
+			&i.Module,
 			&i.Name,
 			&i.Description,
 			&i.Price,
@@ -96,7 +101,7 @@ func (q *Queries) GetActiveAddons(ctx context.Context) ([]Addon, error) {
 }
 
 const getAddonByID = `-- name: GetAddonByID :one
-SELECT id, name, description, price, unit, is_active, created_at, updated_at FROM addons
+SELECT id, module, name, description, price, unit, is_active, created_at, updated_at FROM addons
 WHERE id = $1::varchar LIMIT 1
 `
 
@@ -105,6 +110,7 @@ func (q *Queries) GetAddonByID(ctx context.Context, dollar_1 string) (Addon, err
 	var i Addon
 	err := row.Scan(
 		&i.ID,
+		&i.Module,
 		&i.Name,
 		&i.Description,
 		&i.Price,
@@ -117,7 +123,7 @@ func (q *Queries) GetAddonByID(ctx context.Context, dollar_1 string) (Addon, err
 }
 
 const getAddonsByIDs = `-- name: GetAddonsByIDs :many
-SELECT id, name, description, price, unit, is_active, created_at, updated_at FROM addons
+SELECT id, module, name, description, price, unit, is_active, created_at, updated_at FROM addons
 WHERE id = ANY($1::varchar[])
 `
 
@@ -132,6 +138,7 @@ func (q *Queries) GetAddonsByIDs(ctx context.Context, dollar_1 []string) ([]Addo
 		var i Addon
 		if err := rows.Scan(
 			&i.ID,
+			&i.Module,
 			&i.Name,
 			&i.Description,
 			&i.Price,
@@ -151,12 +158,13 @@ func (q *Queries) GetAddonsByIDs(ctx context.Context, dollar_1 []string) ([]Addo
 }
 
 const listAllAddons = `-- name: ListAllAddons :many
-SELECT id, name, description, price, unit, is_active, created_at, updated_at FROM addons
-ORDER BY name ASC
+SELECT id, module, name, description, price, unit, is_active, created_at, updated_at FROM addons
+WHERE ($1::text = '' OR module = $1)
+ORDER BY module ASC, created_at DESC
 `
 
-func (q *Queries) ListAllAddons(ctx context.Context) ([]Addon, error) {
-	rows, err := q.db.Query(ctx, listAllAddons)
+func (q *Queries) ListAllAddons(ctx context.Context, dollar_1 string) ([]Addon, error) {
+	rows, err := q.db.Query(ctx, listAllAddons, dollar_1)
 	if err != nil {
 		return nil, err
 	}
@@ -166,6 +174,7 @@ func (q *Queries) ListAllAddons(ctx context.Context) ([]Addon, error) {
 		var i Addon
 		if err := rows.Scan(
 			&i.ID,
+			&i.Module,
 			&i.Name,
 			&i.Description,
 			&i.Price,
@@ -189,7 +198,7 @@ UPDATE addons
 SET is_active = NOT is_active,
     updated_at = NOW()
 WHERE id = $1::varchar
-RETURNING id, name, description, price, unit, is_active, created_at, updated_at
+RETURNING id, module, name, description, price, unit, is_active, created_at, updated_at
 `
 
 func (q *Queries) ToggleAddonActive(ctx context.Context, dollar_1 string) (Addon, error) {
@@ -197,6 +206,7 @@ func (q *Queries) ToggleAddonActive(ctx context.Context, dollar_1 string) (Addon
 	var i Addon
 	err := row.Scan(
 		&i.ID,
+		&i.Module,
 		&i.Name,
 		&i.Description,
 		&i.Price,
@@ -211,18 +221,20 @@ func (q *Queries) ToggleAddonActive(ctx context.Context, dollar_1 string) (Addon
 const updateAddon = `-- name: UpdateAddon :one
 UPDATE addons
 SET
-    name = $2,
-    description = $3,
-    price = $4,
-    unit = $5,
-    is_active = $6,
+    module = $2,
+    name = $3,
+    description = $4,
+    price = $5,
+    unit = $6,
+    is_active = $7,
     updated_at = NOW()
 WHERE id = $1::varchar
-RETURNING id, name, description, price, unit, is_active, created_at, updated_at
+RETURNING id, module, name, description, price, unit, is_active, created_at, updated_at
 `
 
 type UpdateAddonParams struct {
 	Column1     string         `json:"column_1"`
+	Module      string         `json:"module"`
 	Name        string         `json:"name"`
 	Description *string        `json:"description"`
 	Price       pgtype.Numeric `json:"price"`
@@ -233,6 +245,7 @@ type UpdateAddonParams struct {
 func (q *Queries) UpdateAddon(ctx context.Context, arg UpdateAddonParams) (Addon, error) {
 	row := q.db.QueryRow(ctx, updateAddon,
 		arg.Column1,
+		arg.Module,
 		arg.Name,
 		arg.Description,
 		arg.Price,
@@ -242,6 +255,7 @@ func (q *Queries) UpdateAddon(ctx context.Context, arg UpdateAddonParams) (Addon
 	var i Addon
 	err := row.Scan(
 		&i.ID,
+		&i.Module,
 		&i.Name,
 		&i.Description,
 		&i.Price,

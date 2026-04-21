@@ -48,6 +48,7 @@ CREATE TABLE themes (
 -- Addons table
 CREATE TABLE addons (
     id VARCHAR(255) PRIMARY KEY,
+    module VARCHAR(50) NOT NULL DEFAULT 'raya',
     name VARCHAR(255) NOT NULL,
     description TEXT,
     price DECIMAL(10, 2) NOT NULL,

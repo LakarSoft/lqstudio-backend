@@ -24,6 +24,8 @@ definitions:
         type: string
       id:
         type: string
+      module:
+        type: string
       isActive:
         type: boolean
       name:
@@ -140,6 +142,8 @@ definitions:
       id:
         maxLength: 50
         type: string
+      module:
+        type: string
       name:
         type: string
       price:
@@ -149,6 +153,7 @@ definitions:
         type: string
     required:
     - id
+    - module
     - name
     - price
     type: object
@@ -340,6 +345,8 @@ definitions:
         type: string
       isActive:
         type: boolean
+      module:
+        type: string
       name:
         type: string
       price:
@@ -349,6 +356,7 @@ definitions:
         type: string
     required:
     - id
+    - module
     - name
     - price
     type: object
@@ -506,6 +514,11 @@ paths:
       consumes:
       - application/json
       description: Get list of all active add-ons available for booking
+      parameters:
+      - description: Filter active addons by module
+        in: query
+        name: module
+        type: string
       produces:
       - application/json
       responses:
@@ -537,6 +550,10 @@ paths:
         in: header
         name: Authorization
         required: true
+        type: string
+      - description: Filter addons by module
+        in: query
+        name: module
         type: string
       produces:
       - application/json
