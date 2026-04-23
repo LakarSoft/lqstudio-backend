@@ -72,7 +72,7 @@ func (s *BookingService) CreateBooking(ctx context.Context, req *dto.BookingRequ
 
 	// 2. Validate slot count and handle theme assignment
 	requiredSlots := pkg.RequiredSlots()
-	isStudioLevel := requiredSlots == 3
+	isStudioLevel := pkg.Module == models.ModuleRaya && requiredSlots == 3
 
 	if isStudioLevel {
 		// Studio-level packages (60 min) book ALL active themes.
@@ -82,7 +82,7 @@ func (s *BookingService) CreateBooking(ctx context.Context, req *dto.BookingRequ
 		}
 
 		// Fetch all active themes
-		activeThemes, err := s.themeRepo.GetActive(ctx, "")
+		activeThemes, err := s.themeRepo.GetActive(ctx, pkg.Module)
 		if err != nil {
 			return nil, errors.NewDatabaseError("get active themes", err)
 		}
@@ -144,6 +144,9 @@ func (s *BookingService) CreateBooking(ctx context.Context, req *dto.BookingRequ
 			}
 			if !theme.IsActive {
 				return nil, errors.NewBadRequestError(fmt.Sprintf("Theme '%s' is not active", themeID))
+			}
+			if theme.Module != pkg.Module {
+				return nil, errors.NewBadRequestError(fmt.Sprintf("Theme '%s' does not belong to package module '%s'", themeID, pkg.Module))
 			}
 		}
 
@@ -366,7 +369,8 @@ func (s *BookingService) UpdateBookingStatus(ctx context.Context, bookingID stri
 
 		// Send appropriate email based on status
 		var emailErr error
-		if status == models.BookingStatusApproved {
+		switch status {
+		case models.BookingStatusApproved:
 			emailErr = s.emailClient.SendBookingApproval(
 				booking.CustomerEmail,
 				booking,
@@ -385,7 +389,7 @@ func (s *BookingService) UpdateBookingStatus(ctx context.Context, bookingID stri
 				metrics.EmailNotificationsTotal.WithLabelValues("booking_approval").Inc()
 				response.EmailNotificationSent = true
 			}
-		} else if status == models.BookingStatusRejected {
+		case models.BookingStatusRejected:
 			emailErr = s.emailClient.SendBookingRejection(
 				booking.CustomerEmail,
 				booking,
@@ -496,7 +500,7 @@ func (s *BookingService) UpdateBooking(ctx context.Context, bookingID string, re
 
 	// 4. Validate slot count and handle theme assignment (mirrors CreateBooking logic)
 	requiredSlots := pkg.RequiredSlots()
-	isStudioLevel := requiredSlots == 3
+	isStudioLevel := pkg.Module == models.ModuleRaya && requiredSlots == 3
 
 	if isStudioLevel {
 		if len(req.Slots) != requiredSlots {
@@ -510,7 +514,7 @@ func (s *BookingService) UpdateBooking(ctx context.Context, bookingID string, re
 			}
 		}
 
-		activeThemes, err := s.themeRepo.GetActive(ctx, "")
+		activeThemes, err := s.themeRepo.GetActive(ctx, pkg.Module)
 		if err != nil {
 			return nil, errors.NewDatabaseError("get active themes", err)
 		}
@@ -580,6 +584,9 @@ func (s *BookingService) UpdateBooking(ctx context.Context, bookingID string, re
 			}
 			if !theme.IsActive {
 				return nil, errors.NewBadRequestError(fmt.Sprintf("Theme '%s' is not active", themeID))
+			}
+			if theme.Module != pkg.Module {
+				return nil, errors.NewBadRequestError(fmt.Sprintf("Theme '%s' does not belong to package module '%s'", themeID, pkg.Module))
 			}
 		}
 
@@ -682,11 +689,14 @@ func (s *BookingService) UpdateBooking(ctx context.Context, bookingID string, re
 }
 
 // GetAvailability checks available time slots for a theme on a date
-// If themeID is "all", it returns aggregated availability across all active themes
+// If themeID is "all", it returns aggregated availability for Raya themes only.
 func (s *BookingService) GetAvailability(ctx context.Context, req *dto.AvailabilityRequest) (*dto.AvailabilityResponse, error) {
+	var pkg *models.Package
+
 	// Optional: Validate package exists if packageID is provided
 	if req.PackageID != "" {
-		_, err := s.packageRepo.GetByID(ctx, req.PackageID)
+		var err error
+		pkg, err = s.packageRepo.GetByID(ctx, req.PackageID)
 		if err != nil {
 			if stderr.Is(err, pgx.ErrNoRows) {
 				return nil, errors.NewPackageNotFoundError(req.PackageID)
@@ -697,21 +707,35 @@ func (s *BookingService) GetAvailability(ctx context.Context, req *dto.Availabil
 
 	// Check if requesting availability for all themes
 	if req.ThemeID == "all" {
-		return s.getAvailabilityForAllThemes(ctx, req)
+		module := models.ModuleRaya
+		if pkg != nil {
+			module = pkg.Module
+		}
+		if module == models.ModuleConvocation {
+			return nil, errors.NewBadRequestError("Convocation availability supports single-theme selection only")
+		}
+		return s.getAvailabilityForAllThemes(ctx, req, module)
 	}
 
-	// Single theme availability (existing logic)
 	// Validate theme exists
-	_, err := s.themeRepo.GetByID(ctx, req.ThemeID)
+	theme, err := s.themeRepo.GetByID(ctx, req.ThemeID)
 	if err != nil {
 		if stderr.Is(err, pgx.ErrNoRows) {
 			return nil, errors.NewThemeNotFoundError(req.ThemeID)
 		}
 		return nil, errors.NewDatabaseError("get theme", err)
 	}
+	if pkg != nil && theme.Module != pkg.Module {
+		return nil, errors.NewBadRequestError(fmt.Sprintf("Theme '%s' does not belong to package module '%s'", req.ThemeID, pkg.Module))
+	}
+
+	slotDuration := models.RayaSlotDurationMinutes
+	if theme.Module == models.ModuleConvocation {
+		slotDuration = models.ConvocationSlotDurationMinutes
+	}
 
 	// Generate time slots based on configured studio hours
-	allSlots := generateTimeSlots(s.openHour, s.closeHour)
+	allSlots := generateTimeSlots(s.openHour, s.closeHour, slotDuration)
 
 	// Get booked slots for this theme on this date
 	bookedSlots, err := s.bookingRepo.GetBookedSlotsForThemeAndDate(ctx, req.ThemeID, req.Date)
@@ -744,16 +768,16 @@ func (s *BookingService) GetAvailability(ctx context.Context, req *dto.Availabil
 // getAvailabilityForAllThemes checks availability across all active themes
 // A time slot is available ONLY if ALL themes are available (no themes booked)
 // If even one theme is booked at a time slot, it shows as unavailable
-func (s *BookingService) getAvailabilityForAllThemes(ctx context.Context, req *dto.AvailabilityRequest) (*dto.AvailabilityResponse, error) {
-	// Get all active themes
-	activeThemes, err := s.themeRepo.GetActive(ctx, "")
+func (s *BookingService) getAvailabilityForAllThemes(ctx context.Context, req *dto.AvailabilityRequest, module string) (*dto.AvailabilityResponse, error) {
+	// Get all active themes for the selected module.
+	activeThemes, err := s.themeRepo.GetActive(ctx, module)
 	if err != nil {
 		return nil, errors.NewDatabaseError("get active themes", err)
 	}
 
 	// If no active themes, all slots are unavailable
 	if len(activeThemes) == 0 {
-		allSlots := generateTimeSlots(s.openHour, s.closeHour)
+		allSlots := generateTimeSlots(s.openHour, s.closeHour, models.RayaSlotDurationMinutes)
 		availabilitySlots := make([]dto.AvailableSlotInfo, len(allSlots))
 		for i, slotTime := range allSlots {
 			availabilitySlots[i] = dto.AvailableSlotInfo{
@@ -766,9 +790,13 @@ func (s *BookingService) getAvailabilityForAllThemes(ctx context.Context, req *d
 			Slots: availabilitySlots,
 		}, nil
 	}
+	activeThemeIDs := make(map[string]bool, len(activeThemes))
+	for _, theme := range activeThemes {
+		activeThemeIDs[theme.ID] = true
+	}
 
 	// Generate time slots based on configured studio hours
-	allSlots := generateTimeSlots(s.openHour, s.closeHour)
+	allSlots := generateTimeSlots(s.openHour, s.closeHour, models.RayaSlotDurationMinutes)
 
 	// Get all booked slots for all themes on this date
 	bookedSlots, err := s.bookingRepo.GetBookedSlotsForAllThemesAndDate(ctx, req.Date)
@@ -779,6 +807,9 @@ func (s *BookingService) getAvailabilityForAllThemes(ctx context.Context, req *d
 	// Build a map: time -> set of booked theme IDs
 	bookedThemesByTime := make(map[string]map[string]bool)
 	for _, slot := range bookedSlots {
+		if !activeThemeIDs[slot.ThemeID] {
+			continue
+		}
 		if bookedThemesByTime[slot.Time] == nil {
 			bookedThemesByTime[slot.Time] = make(map[string]bool)
 		}
@@ -926,10 +957,13 @@ func generateBookingID() string {
 	return fmt.Sprintf("bkg-%d-%s", timestamp, randomHex)
 }
 
-// generateTimeSlots generates time slots in 20-minute intervals between openHour and closeHour.
+// generateTimeSlots generates time slots in the requested interval between openHour and closeHour.
 // Times are formatted in 12-hour format (e.g., "10:00 AM", "2:00 PM").
-func generateTimeSlots(openHour, closeHour int) []string {
+func generateTimeSlots(openHour, closeHour, intervalMinutes int) []string {
 	slots := []string{}
+	if intervalMinutes <= 0 {
+		return slots
+	}
 	hour := openHour
 	minute := 0
 
@@ -941,10 +975,10 @@ func generateTimeSlots(openHour, closeHour int) []string {
 		t := time.Date(0, 1, 1, hour, minute, 0, 0, time.UTC)
 		slots = append(slots, t.Format("3:04 PM"))
 
-		minute += 20
+		minute += intervalMinutes
 		if minute >= 60 {
-			minute = 0
-			hour++
+			hour += minute / 60
+			minute = minute % 60
 		}
 	}
 

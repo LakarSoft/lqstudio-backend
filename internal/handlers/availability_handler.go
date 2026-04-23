@@ -22,11 +22,11 @@ func NewAvailabilityHandler(bookingService *services.BookingService) *Availabili
 
 // GetAvailability godoc
 // @Summary Get available time slots
-// @Description Check available time slots for a specific theme or all themes on a specific date. Use themeId="all" to check availability across all active themes.
+// @Description Check available time slots for a specific theme or Raya all-theme flow on a specific date. Convocation supports single-theme availability only.
 // @Tags availability
 // @Accept json
 // @Produce json
-// @Param themeId path string true "Theme ID or 'all' for all themes"
+// @Param themeId path string true "Theme ID, or 'all' for Raya all-theme availability"
 // @Param date query string true "Date in YYYY-MM-DD format"
 // @Param packageId query string false "Package ID (optional)"
 // @Success 200 {object} dto.ApiResponse{data=dto.AvailabilityResponse} "Returns availability with themeId in slots for specific theme, or without themeId for all themes"

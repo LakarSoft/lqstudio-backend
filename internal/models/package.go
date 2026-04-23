@@ -1,10 +1,19 @@
 package models
 
 import (
+	"fmt"
 	"strings"
 	"time"
 
 	"github.com/shopspring/decimal"
+)
+
+const (
+	ModuleRaya        = "raya"
+	ModuleConvocation = "convocation"
+
+	RayaSlotDurationMinutes        = 20
+	ConvocationSlotDurationMinutes = 30
 )
 
 // Package represents a booking package
@@ -40,19 +49,28 @@ func (p *Package) FinalPrice() decimal.Decimal {
 	return p.Price.Sub(discountAmount)
 }
 
-// RequiredSlots calculates the number of 20-minute slots needed
+// SlotDurationMinutes returns the booking slot interval for this package module.
+func (p *Package) SlotDurationMinutes() int32 {
+	if p.Module == ModuleConvocation {
+		return ConvocationSlotDurationMinutes
+	}
+	return RayaSlotDurationMinutes
+}
+
+// RequiredSlots calculates the number of slots needed for this package module.
 func (p *Package) RequiredSlots() int {
-	return int(p.DurationMinutes / 20)
+	return int(p.DurationMinutes / p.SlotDurationMinutes())
 }
 
 // ValidatePackage checks if package data is valid
 func (p *Package) ValidatePackage() error {
 	p.Module = strings.TrimSpace(strings.ToLower(p.Module))
-	if p.Module == "" {
+	if p.Module != ModuleRaya && p.Module != ModuleConvocation {
 		return ErrInvalidModule
 	}
-	if p.DurationMinutes <= 0 || p.DurationMinutes%20 != 0 {
-		return ErrInvalidDuration
+	slotDuration := p.SlotDurationMinutes()
+	if p.DurationMinutes <= 0 || p.DurationMinutes%slotDuration != 0 {
+		return NewValidationError(fmt.Sprintf("duration must be a positive multiple of %d minutes for %s module", slotDuration, p.Module))
 	}
 	if p.Price.IsNegative() {
 		return ErrInvalidPrice
@@ -65,7 +83,7 @@ func (p *Package) ValidatePackage() error {
 
 // Errors
 var (
-	ErrInvalidModule   = NewValidationError("module is required")
+	ErrInvalidModule   = NewValidationError("module must be either raya or convocation")
 	ErrInvalidDuration = NewValidationError("duration must be a positive multiple of 20 minutes")
 	ErrInvalidPrice    = NewValidationError("price cannot be negative")
 	ErrInvalidDiscount = NewValidationError("discount must be between 0 and 100")
