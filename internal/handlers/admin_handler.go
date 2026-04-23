@@ -798,6 +798,7 @@ func (h *AdminHandler) ToggleAddonActive(c echo.Context) error {
 // @Security BearerAuth
 // @Param Authorization header string true "Bearer token"
 // @Param status query string false "Filter by status" Enums(PENDING, APPROVED, REJECTED, COMPLETED)
+// @Param module query string false "Filter by package module" Enums(raya, convocation)
 // @Param email query string false "Filter by customer email (partial match)"
 // @Param packageId query string false "Filter by package ID"
 // @Param themeId query string false "Filter by theme ID"
@@ -819,11 +820,23 @@ func (h *AdminHandler) ListBookings(c echo.Context) error {
 	if err := c.Bind(&filters); err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid query parameters")
 	}
+	if module := c.QueryParam("module"); module != "" {
+		filters.Module = normalizeBookingModuleFilter(module)
+	} else {
+		filters.Module = normalizeBookingModuleFilter(filters.Module)
+	}
 
 	if filters.Status != "" {
 		valid := map[string]bool{"PENDING": true, "APPROVED": true, "REJECTED": true, "COMPLETED": true}
 		if !valid[filters.Status] {
 			return echo.NewHTTPError(http.StatusBadRequest, "invalid status parameter. must be PENDING, APPROVED, REJECTED, or COMPLETED")
+		}
+	}
+
+	if filters.Module != "" {
+		valid := map[string]bool{"raya": true, "convocation": true}
+		if !valid[filters.Module] {
+			return echo.NewHTTPError(http.StatusBadRequest, "invalid module parameter. must be raya or convocation")
 		}
 	}
 
@@ -844,6 +857,10 @@ func (h *AdminHandler) ListBookings(c echo.Context) error {
 	}
 
 	return SendOK(c, result, "Bookings retrieved successfully")
+}
+
+func normalizeBookingModuleFilter(module string) string {
+	return strings.TrimSpace(strings.ToLower(module))
 }
 
 // GetBooking godoc

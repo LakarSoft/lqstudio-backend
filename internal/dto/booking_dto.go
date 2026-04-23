@@ -19,8 +19,8 @@ type BookingRequest struct {
 
 // UpdateBookingRequest represents a booking update request (admin only).
 // Payload is identical to BookingRequest minus packageId — the package cannot change.
-// Slot rules are the same: 1/2-slot packages require themeId per slot;
-// 3-slot (studio-level) packages omit themeId and the backend auto-assigns all themes.
+// Slot rules are the same: convocation and Raya non-studio packages require themeId per slot;
+// Raya 3-slot studio-level packages omit themeId and the backend auto-assigns all active Raya themes.
 type UpdateBookingRequest struct {
 	Slots    []SlotRequest  `json:"slots" validate:"required,min=1,max=3,dive"`
 	Addons   []AddonRequest `json:"addons,omitempty"`
@@ -31,8 +31,8 @@ type UpdateBookingRequest struct {
 // Matches the frontend BookingSlot structure with camelCase JSON tags
 type SlotRequest struct {
 	Date    string `json:"date" validate:"required"` // ISO date string (YYYY-MM-DD)
-	Time    string `json:"time" validate:"required"` // Time in HH:mm format (e.g., "10:00")
-	ThemeID string `json:"themeId,omitempty"`        // Required for 1/2-slot packages; omitted for studio-level (3-slot) packages — backend auto-assigns all themes
+	Time    string `json:"time" validate:"required"` // 12-hour format (e.g., "10:00 AM")
+	ThemeID string `json:"themeId,omitempty"`        // Required for convocation and Raya non-studio packages; omitted for Raya studio-level packages
 }
 
 // AddonRequest represents an add-on selection in a booking
@@ -129,6 +129,7 @@ type UpdateAdminNotesRequest struct {
 // BookingFilters for admin booking list with filtering, sorting, and pagination
 type BookingFilters struct {
 	Status    string `query:"status"`    // Filter by status (PENDING, APPROVED, REJECTED, COMPLETED)
+	Module    string `query:"module"`    // Filter by package module (raya, convocation)
 	Email     string `query:"email"`     // Filter by customer email (partial match)
 	PackageID string `query:"packageId"` // Filter by package ID
 	ThemeID   string `query:"themeId"`   // Filter by theme (joins booking_slots)
