@@ -135,6 +135,64 @@ definitions:
         description: ISO 8601 datetime
         type: string
     type: object
+  dto.BookingDetailsAddonResponse:
+    properties:
+      addon:
+        $ref: '#/definitions/dto.AddonResponse'
+      addonId:
+        type: string
+      quantity:
+        type: integer
+    type: object
+  dto.BookingDetailsResponse:
+    properties:
+      addons:
+        items:
+          $ref: '#/definitions/dto.BookingDetailsAddonResponse'
+        type: array
+      adminNotes:
+        description: Admin-only notes for this booking
+        type: string
+      createdAt:
+        description: ISO 8601 datetime
+        type: string
+      customer:
+        $ref: '#/definitions/dto.CustomerInfo'
+      id:
+        type: string
+      package:
+        $ref: '#/definitions/dto.PackageResponse'
+      packageId:
+        type: string
+      paymentScreenshotUrl:
+        type: string
+      slots:
+        items:
+          $ref: '#/definitions/dto.BookingDetailsSlotResponse'
+        type: array
+      status:
+        description: PENDING | APPROVED | REJECTED | COMPLETED
+        type: string
+      totalPrice:
+        type: number
+      updatedAt:
+        description: ISO 8601 datetime
+        type: string
+    type: object
+  dto.BookingDetailsSlotResponse:
+    properties:
+      date:
+        description: ISO date string (YYYY-MM-DD)
+        type: string
+      theme:
+        $ref: '#/definitions/dto.ThemeResponse'
+      themeId:
+        description: Foreign key to Theme
+        type: string
+      time:
+        description: Time in HH:mm format
+        type: string
+    type: object
   dto.CreateAddonRequest:
     properties:
       description:
@@ -948,7 +1006,7 @@ paths:
             - $ref: '#/definitions/dto.ApiResponse'
             - properties:
                 data:
-                  $ref: '#/definitions/dto.BookingResponse'
+                  $ref: '#/definitions/dto.BookingDetailsResponse'
               type: object
         "400":
           description: Bad Request
@@ -1011,7 +1069,7 @@ paths:
             - $ref: '#/definitions/dto.ApiResponse'
             - properties:
                 data:
-                  $ref: '#/definitions/dto.BookingResponse'
+                  $ref: '#/definitions/dto.BookingDetailsResponse'
               type: object
         "400":
           description: Invalid request or wrong slot count

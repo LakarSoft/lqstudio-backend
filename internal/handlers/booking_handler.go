@@ -77,7 +77,7 @@ func NewBookingHandler(
 // @Accept json
 // @Produce json
 // @Param request body dto.BookingRequest true "Booking data"
-// @Success 201 {object} dto.ApiResponse{data=dto.BookingResponse}
+// @Success 201 {object} dto.ApiResponse{data=dto.BookingDetailsResponse}
 // @Failure 400 {object} dto.ApiResponse "Invalid request, wrong slot count, invalid time interval, module mismatch, or missing themeId for non-studio package"
 // @Failure 404 {object} dto.ApiResponse "Package, theme, or addon not found"
 // @Failure 409 {object} dto.ApiResponse "One or more requested slots are already booked"
@@ -117,7 +117,7 @@ func (h *BookingHandler) CreateBooking(c echo.Context) error {
 // @Accept json
 // @Produce json
 // @Param id path string true "Booking ID"
-// @Success 200 {object} dto.ApiResponse{data=dto.BookingResponse}
+// @Success 200 {object} dto.ApiResponse{data=dto.BookingDetailsResponse}
 // @Failure 400 {object} dto.ApiResponse
 // @Failure 404 {object} dto.ApiResponse
 // @Failure 500 {object} dto.ApiResponse

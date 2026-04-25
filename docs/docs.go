@@ -728,7 +728,7 @@ const docTemplate = `{
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/dto.BookingResponse"
+                                            "$ref": "#/definitions/dto.BookingDetailsResponse"
                                         }
                                     }
                                 }
@@ -808,7 +808,7 @@ const docTemplate = `{
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/dto.BookingResponse"
+                                            "$ref": "#/definitions/dto.BookingDetailsResponse"
                                         }
                                     }
                                 }
@@ -2795,6 +2795,91 @@ const docTemplate = `{
                 },
                 "updatedAt": {
                     "description": "ISO 8601 datetime",
+                    "type": "string"
+                }
+            }
+        },
+        "dto.BookingDetailsAddonResponse": {
+            "type": "object",
+            "properties": {
+                "addon": {
+                    "$ref": "#/definitions/dto.AddonResponse"
+                },
+                "addonId": {
+                    "type": "string"
+                },
+                "quantity": {
+                    "type": "integer"
+                }
+            }
+        },
+        "dto.BookingDetailsResponse": {
+            "type": "object",
+            "properties": {
+                "addons": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dto.BookingDetailsAddonResponse"
+                    }
+                },
+                "adminNotes": {
+                    "description": "Admin-only notes for this booking",
+                    "type": "string"
+                },
+                "createdAt": {
+                    "description": "ISO 8601 datetime",
+                    "type": "string"
+                },
+                "customer": {
+                    "$ref": "#/definitions/dto.CustomerInfo"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "package": {
+                    "$ref": "#/definitions/dto.PackageResponse"
+                },
+                "packageId": {
+                    "type": "string"
+                },
+                "paymentScreenshotUrl": {
+                    "type": "string"
+                },
+                "slots": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dto.BookingDetailsSlotResponse"
+                    }
+                },
+                "status": {
+                    "description": "PENDING | APPROVED | REJECTED | COMPLETED",
+                    "type": "string"
+                },
+                "totalPrice": {
+                    "type": "number"
+                },
+                "updatedAt": {
+                    "description": "ISO 8601 datetime",
+                    "type": "string"
+                }
+            }
+        },
+        "dto.BookingDetailsSlotResponse": {
+            "type": "object",
+            "properties": {
+                "date": {
+                    "description": "ISO date string (YYYY-MM-DD)",
+                    "type": "string"
+                },
+                "theme": {
+                    "$ref": "#/definitions/dto.ThemeResponse"
+                },
+                "themeId": {
+                    "description": "Foreign key to Theme",
+                    "type": "string"
+                },
+                "time": {
+                    "description": "Time in HH:mm format",
                     "type": "string"
                 }
             }

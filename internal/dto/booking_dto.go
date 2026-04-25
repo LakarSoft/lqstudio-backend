@@ -13,7 +13,7 @@ import (
 type BookingRequest struct {
 	PackageID string         `json:"packageId" validate:"required"`
 	Slots     []SlotRequest  `json:"slots" validate:"required,min=1,max=3,dive"`
-	Addons    []AddonRequest `json:"addons,omitempty,dive"`
+	Addons    []AddonRequest `json:"addons,omitempty" validate:"omitempty,dive"`
 	Customer  CustomerInfo   `json:"customer" validate:"required"`
 }
 
@@ -23,7 +23,7 @@ type BookingRequest struct {
 // Raya 3-slot studio-level packages omit themeId and the backend auto-assigns all active Raya themes.
 type UpdateBookingRequest struct {
 	Slots    []SlotRequest  `json:"slots" validate:"required,min=1,max=3,dive"`
-	Addons   []AddonRequest `json:"addons,omitempty"`
+	Addons   []AddonRequest `json:"addons,omitempty" validate:"omitempty,dive"`
 	Customer CustomerInfo   `json:"customer" validate:"required"`
 }
 
@@ -67,6 +67,23 @@ type BookingResponse struct {
 	UpdatedAt            string              `json:"updatedAt"`            // ISO 8601 datetime
 }
 
+// BookingDetailsResponse represents an enriched booking payload with package,
+// theme, and add-on details for customer-facing booking detail endpoints.
+type BookingDetailsResponse struct {
+	ID                   string                        `json:"id"`
+	PackageID            string                        `json:"packageId"`
+	Package              *PackageResponse              `json:"package"`
+	Slots                []BookingDetailsSlotResponse  `json:"slots"`
+	Addons               []BookingDetailsAddonResponse `json:"addons,omitempty"`
+	Customer             CustomerInfo                  `json:"customer"`
+	Status               string                        `json:"status"` // PENDING | APPROVED | REJECTED | COMPLETED
+	TotalPrice           float64                       `json:"totalPrice"`
+	PaymentScreenshotURL string                        `json:"paymentScreenshotUrl,omitempty"`
+	AdminNotes           string                        `json:"adminNotes,omitempty"` // Admin-only notes for this booking
+	CreatedAt            string                        `json:"createdAt"`            // ISO 8601 datetime
+	UpdatedAt            string                        `json:"updatedAt"`            // ISO 8601 datetime
+}
+
 // SlotResponse represents a booked slot in responses
 // Matches the frontend BookingSlot structure
 type SlotResponse struct {
@@ -75,11 +92,26 @@ type SlotResponse struct {
 	ThemeID string `json:"themeId"` // Foreign key to Theme
 }
 
+// BookingDetailsSlotResponse represents a booked slot enriched with theme details.
+type BookingDetailsSlotResponse struct {
+	Date    string         `json:"date"`    // ISO date string (YYYY-MM-DD)
+	Time    string         `json:"time"`    // Time in HH:mm format
+	ThemeID string         `json:"themeId"` // Foreign key to Theme
+	Theme   *ThemeResponse `json:"theme"`
+}
+
 // AddonItemResponse represents a booked add-on in responses
 // Matches the frontend SelectedAddon structure
 type AddonItemResponse struct {
 	AddonID  string `json:"addonId"`
 	Quantity int    `json:"quantity"`
+}
+
+// BookingDetailsAddonResponse represents a booked add-on enriched with add-on details.
+type BookingDetailsAddonResponse struct {
+	AddonID  string         `json:"addonId"`
+	Quantity int            `json:"quantity"`
+	Addon    *AddonResponse `json:"addon"`
 }
 
 // AvailabilityRequest for checking available time slots
@@ -250,6 +282,67 @@ func ToBookingsResponse(bookings []*models.Booking) []*BookingResponse {
 		responses[i] = ToBookingResponse(booking)
 	}
 	return responses
+}
+
+// ToBookingDetailsResponse converts a booking plus related package/theme/add-on
+// models into the enriched response used by customer-facing booking detail endpoints.
+func ToBookingDetailsResponse(
+	booking *models.Booking,
+	pkg *models.Package,
+	themesByID map[string]*models.Theme,
+	addonsByID map[string]*models.AddOn,
+) *BookingDetailsResponse {
+	if booking == nil {
+		return nil
+	}
+
+	totalPrice, _ := booking.TotalAmount.Float64()
+
+	slots := make([]BookingDetailsSlotResponse, len(booking.Slots))
+	for i, slot := range booking.Slots {
+		slots[i] = BookingDetailsSlotResponse{
+			Date:    slot.Date.Format("2006-01-02"),
+			Time:    slot.Time,
+			ThemeID: slot.ThemeID,
+			Theme:   ToThemeResponse(themesByID[slot.ThemeID]),
+		}
+	}
+
+	addons := make([]BookingDetailsAddonResponse, len(booking.Addons))
+	for i, addon := range booking.Addons {
+		addons[i] = BookingDetailsAddonResponse{
+			AddonID:  addon.AddonID,
+			Quantity: addon.Quantity,
+			Addon:    ToAddonResponse(addonsByID[addon.AddonID]),
+		}
+	}
+
+	customer := CustomerInfo{
+		Name:  booking.CustomerName,
+		Email: booking.CustomerEmail,
+		Phone: booking.CustomerPhone,
+		Notes: booking.CustomerNotes,
+	}
+
+	paymentURL := ""
+	if booking.PaymentScreenshotURL != nil {
+		paymentURL = *booking.PaymentScreenshotURL
+	}
+
+	return &BookingDetailsResponse{
+		ID:                   booking.ID,
+		PackageID:            booking.PackageID,
+		Package:              ToPackageResponse(pkg),
+		Slots:                slots,
+		Addons:               addons,
+		Customer:             customer,
+		Status:               string(booking.Status),
+		TotalPrice:           totalPrice,
+		PaymentScreenshotURL: paymentURL,
+		AdminNotes:           booking.AdminNotes,
+		CreatedAt:            booking.CreatedAt.Format(time.RFC3339),
+		UpdatedAt:            booking.UpdatedAt.Format(time.RFC3339),
+	}
 }
 
 // ToBookingModel converts BookingRequest to domain model Booking

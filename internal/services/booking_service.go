@@ -56,7 +56,7 @@ func NewBookingService(
 }
 
 // CreateBooking creates a new booking with availability checking
-func (s *BookingService) CreateBooking(ctx context.Context, req *dto.BookingRequest) (*dto.BookingResponse, error) {
+func (s *BookingService) CreateBooking(ctx context.Context, req *dto.BookingRequest) (*dto.BookingDetailsResponse, error) {
 	// 1. Validate and get package
 	pkg, err := s.packageRepo.GetByID(ctx, req.PackageID)
 	if err != nil {
@@ -79,6 +79,7 @@ func (s *BookingService) CreateBooking(ctx context.Context, req *dto.BookingRequ
 	isStudioLevel := pkg.Module == models.ModuleRaya && requiredSlots == 3
 	requestedSlots := append([]dto.SlotRequest(nil), req.Slots...)
 	requestedAddons := append([]dto.AddonRequest(nil), req.Addons...)
+	themesByID := map[string]*models.Theme{}
 
 	if err := validateBookingSlotTimes(requestedSlots, pkg, s.openHour, s.closeHour); err != nil {
 		return nil, err
@@ -98,6 +99,9 @@ func (s *BookingService) CreateBooking(ctx context.Context, req *dto.BookingRequ
 		}
 		if len(activeThemes) == 0 {
 			return nil, errors.NewBadRequestError("No active themes available for studio booking")
+		}
+		for _, theme := range activeThemes {
+			themesByID[theme.ID] = theme
 		}
 
 		// Check availability: every active theme must be free for every requested time slot
@@ -158,6 +162,7 @@ func (s *BookingService) CreateBooking(ctx context.Context, req *dto.BookingRequ
 			if theme.Module != pkg.Module {
 				return nil, errors.NewBadRequestError(fmt.Sprintf("Theme '%s' does not belong to package module '%s'", themeID, pkg.Module))
 			}
+			themesByID[theme.ID] = theme
 		}
 
 		// Check slot availability for each (theme_id, date, time) combination
@@ -178,7 +183,7 @@ func (s *BookingService) CreateBooking(ctx context.Context, req *dto.BookingRequ
 	// Package amount = package.FinalPrice() (which already applies discount)
 	packageAmount := pkg.FinalPrice()
 
-	addonsAmount, err := s.validateAndPriceBookingAddons(ctx, pkg, requestedAddons)
+	addonsAmount, addonsByID, err := s.validateAndPriceBookingAddons(ctx, pkg, requestedAddons)
 	if err != nil {
 		return nil, err
 	}
@@ -217,7 +222,7 @@ func (s *BookingService) CreateBooking(ctx context.Context, req *dto.BookingRequ
 	}(bookingID)
 
 	// 11. Return booking response
-	return dto.ToBookingResponse(booking), nil
+	return dto.ToBookingDetailsResponse(booking, pkg, themesByID, addonsByID), nil
 }
 
 func validateBookingSlotTimes(slots []dto.SlotRequest, pkg *models.Package, openHour, closeHour int) error {
@@ -260,19 +265,19 @@ func validateBookingSlotTimes(slots []dto.SlotRequest, pkg *models.Package, open
 	return nil
 }
 
-func (s *BookingService) validateAndPriceBookingAddons(ctx context.Context, pkg *models.Package, requestedAddons []dto.AddonRequest) (decimal.Decimal, error) {
+func (s *BookingService) validateAndPriceBookingAddons(ctx context.Context, pkg *models.Package, requestedAddons []dto.AddonRequest) (decimal.Decimal, map[string]*models.AddOn, error) {
 	if len(requestedAddons) == 0 {
-		return decimal.Zero, nil
+		return decimal.Zero, map[string]*models.AddOn{}, nil
 	}
 
 	addonIDs := make([]string, len(requestedAddons))
 	for i := range requestedAddons {
 		addonID := strings.TrimSpace(requestedAddons[i].AddonID)
 		if addonID == "" {
-			return decimal.Zero, errors.NewBadRequestError(fmt.Sprintf("addonId is required for addon %d", i+1))
+			return decimal.Zero, nil, errors.NewBadRequestError(fmt.Sprintf("addonId is required for addon %d", i+1))
 		}
 		if requestedAddons[i].Quantity <= 0 {
-			return decimal.Zero, errors.NewBadRequestError(fmt.Sprintf("quantity must be at least 1 for addon '%s'", addonID))
+			return decimal.Zero, nil, errors.NewBadRequestError(fmt.Sprintf("quantity must be at least 1 for addon '%s'", addonID))
 		}
 		requestedAddons[i].AddonID = addonID
 		addonIDs[i] = addonID
@@ -280,7 +285,7 @@ func (s *BookingService) validateAndPriceBookingAddons(ctx context.Context, pkg 
 
 	addons, err := s.addonRepo.GetByIDs(ctx, addonIDs)
 	if err != nil {
-		return decimal.Zero, errors.NewDatabaseError("get addons", err)
+		return decimal.Zero, nil, errors.NewDatabaseError("get addons", err)
 	}
 
 	addonMap := make(map[string]*models.AddOn, len(addons))
@@ -293,23 +298,23 @@ func (s *BookingService) validateAndPriceBookingAddons(ctx context.Context, pkg 
 		addonID := reqAddon.AddonID
 		addon, exists := addonMap[addonID]
 		if !exists {
-			return decimal.Zero, errors.NewAddonNotFoundError(addonID)
+			return decimal.Zero, nil, errors.NewAddonNotFoundError(addonID)
 		}
 		if !addon.IsActive {
-			return decimal.Zero, errors.NewBadRequestError(fmt.Sprintf("Addon '%s' is not active", addonID))
+			return decimal.Zero, nil, errors.NewBadRequestError(fmt.Sprintf("Addon '%s' is not active", addonID))
 		}
 		if addon.Module != pkg.Module {
-			return decimal.Zero, errors.NewBadRequestError(fmt.Sprintf("Addon '%s' does not belong to package module '%s'", addonID, pkg.Module))
+			return decimal.Zero, nil, errors.NewBadRequestError(fmt.Sprintf("Addon '%s' does not belong to package module '%s'", addonID, pkg.Module))
 		}
 
 		total = total.Add(addon.Price.Mul(decimal.NewFromInt(int64(reqAddon.Quantity))))
 	}
 
-	return total, nil
+	return total, addonMap, nil
 }
 
 // GetBookingByID retrieves a booking by ID
-func (s *BookingService) GetBookingByID(ctx context.Context, bookingID string) (*dto.BookingResponse, error) {
+func (s *BookingService) GetBookingByID(ctx context.Context, bookingID string) (*dto.BookingDetailsResponse, error) {
 	booking, err := s.bookingRepo.GetByID(ctx, bookingID)
 	if err != nil {
 		if stderr.Is(err, pgx.ErrNoRows) {
@@ -318,7 +323,56 @@ func (s *BookingService) GetBookingByID(ctx context.Context, bookingID string) (
 		return nil, errors.NewDatabaseError("get booking", err)
 	}
 
-	return dto.ToBookingResponse(booking), nil
+	pkg, themesByID, addonsByID, err := s.loadBookingRelatedDetails(ctx, booking)
+	if err != nil {
+		return nil, err
+	}
+
+	return dto.ToBookingDetailsResponse(booking, pkg, themesByID, addonsByID), nil
+}
+
+func (s *BookingService) loadBookingRelatedDetails(ctx context.Context, booking *models.Booking) (*models.Package, map[string]*models.Theme, map[string]*models.AddOn, error) {
+	pkg, err := s.packageRepo.GetByID(ctx, booking.PackageID)
+	if err != nil {
+		return nil, nil, nil, errors.NewDatabaseError("get package", err)
+	}
+
+	themesByID := make(map[string]*models.Theme, len(booking.Slots))
+	for _, slot := range booking.Slots {
+		if slot.ThemeID == "" {
+			continue
+		}
+		if _, exists := themesByID[slot.ThemeID]; exists {
+			continue
+		}
+
+		theme, err := s.themeRepo.GetByID(ctx, slot.ThemeID)
+		if err != nil {
+			return nil, nil, nil, errors.NewDatabaseError(fmt.Sprintf("get theme %s", slot.ThemeID), err)
+		}
+		themesByID[slot.ThemeID] = theme
+	}
+
+	addonIDs := make([]string, 0, len(booking.Addons))
+	for _, addon := range booking.Addons {
+		if addon.AddonID == "" {
+			continue
+		}
+		addonIDs = append(addonIDs, addon.AddonID)
+	}
+
+	addonsByID := map[string]*models.AddOn{}
+	if len(addonIDs) > 0 {
+		addons, err := s.addonRepo.GetByIDs(ctx, uniqueStrings(addonIDs))
+		if err != nil {
+			return nil, nil, nil, errors.NewDatabaseError("get addons", err)
+		}
+		for _, addon := range addons {
+			addonsByID[addon.ID] = addon
+		}
+	}
+
+	return pkg, themesByID, addonsByID, nil
 }
 
 // ListBookings lists bookings with comprehensive filters, sorting, and pagination
