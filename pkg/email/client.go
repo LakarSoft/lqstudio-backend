@@ -2,6 +2,7 @@ package email
 
 import (
 	"fmt"
+	"html"
 	"lqstudio-backend/internal/models"
 	"strings"
 
@@ -38,7 +39,7 @@ func NewClient(apiKey string, from string, adminTo string, logger *zap.Logger) (
 
 // SendBookingConfirmation sends a confirmation email to the customer
 func (c *Client) SendBookingConfirmation(to string, booking *models.Booking, packageName string, slots []SlotInfo, addons []AddonInfo) error {
-	subject := fmt.Sprintf("Booking Confirmation - %s", booking.ID)
+	subject := fmt.Sprintf("Booking Received - %s", c.bookingIDValue(booking))
 	htmlBody := c.buildCustomerConfirmationHTML(booking, packageName, slots, addons)
 
 	params := &resend.SendEmailRequest{
@@ -76,7 +77,7 @@ func (c *Client) SendAdminNotification(booking *models.Booking, packageName stri
 		return nil
 	}
 
-	subject := fmt.Sprintf("New Booking Received - %s", booking.ID)
+	subject := fmt.Sprintf("New Booking Received - %s", c.bookingIDValue(booking))
 	htmlBody := c.buildAdminNotificationHTML(booking, packageName, slots, addons)
 
 	params := &resend.SendEmailRequest{
@@ -107,7 +108,7 @@ func (c *Client) SendAdminNotification(booking *models.Booking, packageName stri
 
 // SendBookingApproval sends an approval email to the customer
 func (c *Client) SendBookingApproval(to string, booking *models.Booking, packageName string, slots []SlotInfo, addons []AddonInfo) error {
-	subject := fmt.Sprintf("Booking Approved - %s", booking.ID)
+	subject := fmt.Sprintf("Booking Approved - %s", c.bookingIDValue(booking))
 	htmlBody := c.buildBookingApprovalHTML(booking, packageName, slots, addons)
 
 	params := &resend.SendEmailRequest{
@@ -138,7 +139,7 @@ func (c *Client) SendBookingApproval(to string, booking *models.Booking, package
 
 // SendBookingRejection sends a rejection email to the customer
 func (c *Client) SendBookingRejection(to string, booking *models.Booking, packageName string, slots []SlotInfo, addons []AddonInfo) error {
-	subject := fmt.Sprintf("Booking Update - %s", booking.ID)
+	subject := fmt.Sprintf("Booking Status Update - %s", c.bookingIDValue(booking))
 	htmlBody := c.buildBookingRejectionHTML(booking, packageName, slots, addons)
 
 	params := &resend.SendEmailRequest{
@@ -183,6 +184,8 @@ type AddonInfo struct {
 
 // buildCustomerConfirmationHTML builds the HTML email for customer confirmation
 func (c *Client) buildCustomerConfirmationHTML(booking *models.Booking, packageName string, slots []SlotInfo, addons []AddonInfo) string {
+	bookingSummary := c.buildBookingSummaryHTML(booking, packageName)
+	customerDetails := c.buildCustomerDetailsHTML(booking, true)
 	slotList := c.buildSlotListHTML(slots)
 	addonsList := c.buildAddonsListHTML(addons)
 
@@ -207,24 +210,17 @@ func (c *Client) buildCustomerConfirmationHTML(booking *models.Booking, packageN
 </head>
 <body>
     <div class="container">
-        <h1>Booking Confirmation - LQ Studio Photography</h1>
+        <h1>Booking Received - LQ Studio Photography</h1>
 
         <p>Dear %s,</p>
-        <p>Thank you for booking with LQ Studio Photography! Your booking has been confirmed and is pending payment verification.</p>
+        <p>Thank you for booking with LQ Studio Photography. We have received your booking request and it is currently pending payment verification.</p>
+        <p>Once your payment has been reviewed, we will update you on the next step for your booking.</p>
 
-        <h2>Booking Details</h2>
-        <div class="detail">
-            <span class="label">Booking ID:</span>
-            <span class="value">%s</span>
-        </div>
-        <div class="detail">
-            <span class="label">Package:</span>
-            <span class="value">%s</span>
-        </div>
-        <div class="detail">
-            <span class="label">Status:</span>
-            <span class="value">%s</span>
-        </div>
+        <h2>Booking Summary</h2>
+        %s
+
+        <h2>Customer Details</h2>
+        %s
 
         <h3>Scheduled Sessions</h3>
         %s
@@ -237,23 +233,23 @@ func (c *Client) buildCustomerConfirmationHTML(booking *models.Booking, packageN
         </div>
 
         <h3>Payment Instructions</h3>
-        <p>Please complete your payment and send the payment screenshot to our WhatsApp number. Your booking will be confirmed once payment is verified.</p>
+        <p>Please complete your payment and share your payment screenshot with LQ Studio for verification.</p>
+        <p>Your booking will remain in pending status until payment verification is completed.</p>
 
         <div class="footer">
-            <p><strong>Note:</strong> If you have any questions about your booking, please don't hesitate to contact us.</p>
-            <p>Thank you for choosing LQ Studio Photography!</p>
+            <p><strong>Note:</strong> If you have any questions about your booking or payment, please contact LQ Studio directly.</p>
+            <p>Thank you for choosing LQ Studio Photography.</p>
         </div>
     </div>
 </body>
 </html>
 `,
-		booking.CustomerName,
-		booking.ID,
-		packageName,
-		string(booking.Status),
+		c.customerNameValue(booking),
+		bookingSummary,
+		customerDetails,
 		slotList,
 		addonsList,
-		booking.TotalAmount.StringFixed(2),
+		c.totalAmountValue(booking),
 	)
 
 	return html
@@ -261,6 +257,8 @@ func (c *Client) buildCustomerConfirmationHTML(booking *models.Booking, packageN
 
 // buildAdminNotificationHTML builds the HTML email for admin notification
 func (c *Client) buildAdminNotificationHTML(booking *models.Booking, packageName string, slots []SlotInfo, addons []AddonInfo) string {
+	bookingSummary := c.buildBookingSummaryHTML(booking, packageName)
+	customerDetails := c.buildCustomerDetailsHTML(booking, true)
 	slotList := c.buildSlotListHTML(slots)
 	addonsList := c.buildAddonsListHTML(addons)
 
@@ -279,7 +277,6 @@ func (c *Client) buildAdminNotificationHTML(booking *models.Booking, packageName
         .label { font-weight: bold; color: #555; }
         .value { color: #333; }
         .slot-item, .addon-item { background: #f8f9fa; padding: 10px; margin: 5px 0; border-left: 4px solid #e74c3c; }
-        .action-button { display: inline-block; padding: 12px 24px; background: #3498db; color: white; text-decoration: none; border-radius: 4px; margin-top: 15px; }
         .total { font-size: 1.2em; font-weight: bold; color: #27ae60; margin-top: 15px; }
         .notes { background: #fff9e6; padding: 10px; margin-top: 10px; border-left: 4px solid #f39c12; }
     </style>
@@ -288,35 +285,13 @@ func (c *Client) buildAdminNotificationHTML(booking *models.Booking, packageName
     <div class="container">
         <h1>New Booking Received</h1>
 
-        <h2>Booking Information</h2>
-        <div class="detail">
-            <span class="label">Booking ID:</span>
-            <span class="value">%s</span>
-        </div>
-        <div class="detail">
-            <span class="label">Status:</span>
-            <span class="value">%s</span>
-        </div>
+        <p>A new customer booking has been submitted and is awaiting follow-up.</p>
+
+        <h2>Booking Summary</h2>
+        %s
 
         <h2>Customer Details</h2>
-        <div class="detail">
-            <span class="label">Name:</span>
-            <span class="value">%s</span>
-        </div>
-        <div class="detail">
-            <span class="label">Email:</span>
-            <span class="value">%s</span>
-        </div>
-        <div class="detail">
-            <span class="label">Phone:</span>
-            <span class="value">%s</span>
-        </div>
-
-        <h2>Package & Sessions</h2>
-        <div class="detail">
-            <span class="label">Package:</span>
-            <span class="value">%s</span>
-        </div>
+        %s
 
         <h3>Scheduled Sessions</h3>
         %s
@@ -328,24 +303,18 @@ func (c *Client) buildAdminNotificationHTML(booking *models.Booking, packageName
             <span class="value">RM %s</span>
         </div>
 
-        %s
-
-        <a href="http://localhost:8080/api/admin/bookings/%s" class="action-button">View Booking Details</a>
+        <div class="footer">
+            <p>Please review the booking in the admin system and follow up with the customer as needed.</p>
+        </div>
     </div>
 </body>
 </html>
 `,
-		booking.ID,
-		string(booking.Status),
-		booking.CustomerName,
-		booking.CustomerEmail,
-		booking.CustomerPhone,
-		packageName,
+		bookingSummary,
+		customerDetails,
 		slotList,
 		addonsList,
-		booking.TotalAmount.StringFixed(2),
-		c.buildCustomerNotesHTML(booking.CustomerNotes),
-		booking.ID,
+		c.totalAmountValue(booking),
 	)
 
 	return html
@@ -353,6 +322,8 @@ func (c *Client) buildAdminNotificationHTML(booking *models.Booking, packageName
 
 // buildBookingApprovalHTML builds the HTML email for booking approval notification
 func (c *Client) buildBookingApprovalHTML(booking *models.Booking, packageName string, slots []SlotInfo, addons []AddonInfo) string {
+	bookingSummary := c.buildBookingSummaryHTML(booking, packageName)
+	customerDetails := c.buildCustomerDetailsHTML(booking, true)
 	slotList := c.buildSlotListHTML(slots)
 	addonsList := c.buildAddonsListHTML(addons)
 
@@ -381,25 +352,17 @@ func (c *Client) buildBookingApprovalHTML(booking *models.Booking, packageName s
         <h1>✓ Booking Approved!</h1>
 
         <div class="success-message">
-            <strong>Good news!</strong> Your booking has been confirmed and approved by LQ Studio Photography.
+            <strong>Good news.</strong> Your booking has been approved and your session is now confirmed.
         </div>
 
         <p>Dear %s,</p>
-        <p>We're excited to confirm that your photography session is all set! Your payment has been verified and your booking is now confirmed.</p>
+        <p>Your payment has been verified, and your booking is now confirmed with LQ Studio Photography.</p>
 
-        <h2>Booking Details</h2>
-        <div class="detail">
-            <span class="label">Booking ID:</span>
-            <span class="value">%s</span>
-        </div>
-        <div class="detail">
-            <span class="label">Package:</span>
-            <span class="value">%s</span>
-        </div>
-        <div class="detail">
-            <span class="label">Status:</span>
-            <span class="value">APPROVED</span>
-        </div>
+        <h2>Booking Summary</h2>
+        %s
+
+        <h2>Customer Details</h2>
+        %s
 
         <h3>Scheduled Sessions</h3>
         %s
@@ -413,20 +376,20 @@ func (c *Client) buildBookingApprovalHTML(booking *models.Booking, packageName s
 
         <div class="footer">
             <p><strong>What's Next?</strong></p>
-            <p>Please arrive 10 minutes before your scheduled session time. If you have any questions or need to make changes, please contact us.</p>
-            <p>We look forward to capturing your special moments!</p>
-            <p>Thank you for choosing LQ Studio Photography!</p>
+            <p>Please arrive at least 10 minutes before your scheduled session time and keep this email for reference.</p>
+            <p>If you need help before your session, or if there are any changes to discuss, please contact LQ Studio as early as possible.</p>
+            <p>We look forward to seeing you at the studio.</p>
         </div>
     </div>
 </body>
 </html>
 `,
-		booking.CustomerName,
-		booking.ID,
-		packageName,
+		c.customerNameValue(booking),
+		bookingSummary,
+		customerDetails,
 		slotList,
 		addonsList,
-		booking.TotalAmount.StringFixed(2),
+		c.totalAmountValue(booking),
 	)
 
 	return html
@@ -434,6 +397,8 @@ func (c *Client) buildBookingApprovalHTML(booking *models.Booking, packageName s
 
 // buildBookingRejectionHTML builds the HTML email for booking rejection notification
 func (c *Client) buildBookingRejectionHTML(booking *models.Booking, packageName string, slots []SlotInfo, addons []AddonInfo) string {
+	bookingSummary := c.buildBookingSummaryHTML(booking, packageName)
+	customerDetails := c.buildCustomerDetailsHTML(booking, true)
 	slotList := c.buildSlotListHTML(slots)
 	addonsList := c.buildAddonsListHTML(addons)
 
@@ -469,28 +434,20 @@ func (c *Client) buildBookingRejectionHTML(booking *models.Booking, packageName 
         <h1>Booking Status Update</h1>
 
         <div class="warning-message">
-            <strong>Important Notice:</strong> We regret to inform you that your booking could not be approved at this time.
+            <strong>Booking Update:</strong> We are unable to approve this booking request at the moment.
         </div>
 
         <p>Dear %s,</p>
-        <p>Thank you for your interest in LQ Studio Photography. Unfortunately, we are unable to proceed with your booking.</p>
+        <p>Thank you for your interest in LQ Studio Photography. After review, we are unable to proceed with this booking request in its current form.</p>
 
         <h2>Reason</h2>
         <p>%s</p>
 
-        <h2>Booking Details</h2>
-        <div class="detail">
-            <span class="label">Booking ID:</span>
-            <span class="value">%s</span>
-        </div>
-        <div class="detail">
-            <span class="label">Package:</span>
-            <span class="value">%s</span>
-        </div>
-        <div class="detail">
-            <span class="label">Status:</span>
-            <span class="value">REJECTED</span>
-        </div>
+        <h2>Booking Summary</h2>
+        %s
+
+        <h2>Customer Details</h2>
+        %s
 
         <h3>Scheduled Sessions (Reference)</h3>
         %s
@@ -503,27 +460,26 @@ func (c *Client) buildBookingRejectionHTML(booking *models.Booking, packageName 
         </div>
 
         <div class="info-box">
-            <h3>Refund Information</h3>
-            <p>If you have made a payment for this booking, please contact us via WhatsApp to arrange a refund.</p>
-            <p><strong>Contact us:</strong> Please reach out to LQ Studio via WhatsApp for immediate assistance regarding your refund.</p>
+            <h3>Next Step</h3>
+            <p>If you have already made a payment, please contact LQ Studio directly so the team can assist you with the next arrangement, including any refund discussion if applicable.</p>
         </div>
 
         <div class="footer">
-            <p>If you have any questions or would like to discuss alternative booking options, please don't hesitate to contact us via WhatsApp.</p>
-            <p>We apologize for any inconvenience and hope to serve you in the future.</p>
+            <p>If you would like to discuss another date, package, or arrangement, please contact LQ Studio directly.</p>
+            <p>We appreciate your understanding and hope to assist you again in the future.</p>
             <p>Best regards,<br>LQ Studio Photography</p>
         </div>
     </div>
 </body>
 </html>
 `,
-		booking.CustomerName,
-		adminNotes,
-		booking.ID,
-		packageName,
+		c.customerNameValue(booking),
+		c.escapeOrDefault(adminNotes, "No specific reason provided."),
+		bookingSummary,
+		customerDetails,
 		slotList,
 		addonsList,
-		booking.TotalAmount.StringFixed(2),
+		c.totalAmountValue(booking),
 	)
 
 	return html
@@ -545,9 +501,9 @@ func (c *Client) buildSlotListHTML(slots []SlotInfo) string {
         </div>
 `,
 			i+1,
-			slot.Date,
-			slot.ThemeName,
-			slot.Time,
+			c.escapeOrDefault(slot.Date, "Date to be confirmed"),
+			c.escapeOrDefault(slot.ThemeName, "Theme to be confirmed"),
+			c.escapeOrDefault(slot.Time, "Time to be confirmed"),
 		))
 	}
 
@@ -570,9 +526,9 @@ func (c *Client) buildAddonsListHTML(addons []AddonInfo) string {
             Quantity: %d | Price: RM %s
         </div>
 `,
-			addon.Name,
-			addon.Quantity,
-			addon.Price,
+			c.escapeOrDefault(addon.Name, "Add-on"),
+			c.nonZeroIntOrDefault(addon.Quantity, 1),
+			c.escapeOrDefault(addon.Price, "0.00"),
 		))
 	}
 
@@ -591,6 +547,111 @@ func (c *Client) buildCustomerNotesHTML(notes string) string {
             %s
         </div>
 `,
-		notes,
+		c.escapeOrDefault(notes, "No customer notes provided."),
 	)
+}
+
+func (c *Client) buildBookingSummaryHTML(booking *models.Booking, packageName string) string {
+	return fmt.Sprintf(`
+        <div class="detail">
+            <span class="label">Booking ID:</span>
+            <span class="value">%s</span>
+        </div>
+        <div class="detail">
+            <span class="label">Package:</span>
+            <span class="value">%s</span>
+        </div>
+        <div class="detail">
+            <span class="label">Status:</span>
+            <span class="value">%s</span>
+        </div>
+        <div class="detail">
+            <span class="label">Total Amount:</span>
+            <span class="value">RM %s</span>
+        </div>
+`,
+		c.bookingIDValue(booking),
+		c.escapeOrDefault(packageName, "Package to be confirmed"),
+		c.bookingStatusValue(booking),
+		c.totalAmountValue(booking),
+	)
+}
+
+func (c *Client) buildCustomerDetailsHTML(booking *models.Booking, includeNotes bool) string {
+	if booking == nil {
+		return `
+        <div class="detail">
+            <span class="value">Customer details are unavailable.</span>
+        </div>
+`
+	}
+
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf(`
+        <div class="detail">
+            <span class="label">Name:</span>
+            <span class="value">%s</span>
+        </div>
+        <div class="detail">
+            <span class="label">Email:</span>
+            <span class="value">%s</span>
+        </div>
+        <div class="detail">
+            <span class="label">Phone:</span>
+            <span class="value">%s</span>
+        </div>
+`,
+		c.customerNameValue(booking),
+		c.escapeOrDefault(booking.CustomerEmail, "Email not provided"),
+		c.escapeOrDefault(booking.CustomerPhone, "Phone not provided"),
+	))
+
+	if includeNotes && strings.TrimSpace(booking.CustomerNotes) != "" {
+		sb.WriteString(c.buildCustomerNotesHTML(booking.CustomerNotes))
+	}
+
+	return sb.String()
+}
+
+func (c *Client) bookingIDValue(booking *models.Booking) string {
+	if booking == nil {
+		return "unknown-booking"
+	}
+	return c.escapeOrDefault(booking.ID, "unknown-booking")
+}
+
+func (c *Client) customerNameValue(booking *models.Booking) string {
+	if booking == nil {
+		return "Customer"
+	}
+	return c.escapeOrDefault(booking.CustomerName, "Customer")
+}
+
+func (c *Client) bookingStatusValue(booking *models.Booking) string {
+	if booking == nil {
+		return "UNKNOWN"
+	}
+	return c.escapeOrDefault(string(booking.Status), "UNKNOWN")
+}
+
+func (c *Client) totalAmountValue(booking *models.Booking) string {
+	if booking == nil {
+		return "0.00"
+	}
+	return booking.TotalAmount.StringFixed(2)
+}
+
+func (c *Client) escapeOrDefault(value string, fallback string) string {
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" {
+		trimmed = fallback
+	}
+	return html.EscapeString(trimmed)
+}
+
+func (c *Client) nonZeroIntOrDefault(value int, fallback int) int {
+	if value <= 0 {
+		return fallback
+	}
+	return value
 }
