@@ -29,6 +29,14 @@ const docTemplate = `{
                 "consumes": [
                     "application/json"
                 ],
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Filter active addons by module",
+                        "name": "module",
+                        "in": "query"
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -92,6 +100,12 @@ const docTemplate = `{
                         "name": "Authorization",
                         "in": "header",
                         "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter addons by module",
+                        "name": "module",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -714,7 +728,7 @@ const docTemplate = `{
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/dto.BookingResponse"
+                                            "$ref": "#/definitions/dto.BookingDetailsResponse"
                                         }
                                     }
                                 }
@@ -794,7 +808,7 @@ const docTemplate = `{
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/dto.BookingResponse"
+                                            "$ref": "#/definitions/dto.BookingDetailsResponse"
                                         }
                                     }
                                 }
@@ -1642,6 +1656,12 @@ const docTemplate = `{
                         "name": "Authorization",
                         "in": "header",
                         "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter themes by module",
+                        "name": "module",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -2372,6 +2392,14 @@ const docTemplate = `{
                     "packages"
                 ],
                 "summary": "Get active packages",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Filter active packages by module",
+                        "name": "module",
+                        "in": "query"
+                    }
+                ],
                 "responses": {
                     "200": {
                         "description": "OK",
@@ -2416,6 +2444,14 @@ const docTemplate = `{
                     "themes"
                 ],
                 "summary": "Get active themes",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Filter active themes by module",
+                        "name": "module",
+                        "in": "query"
+                    }
+                ],
                 "responses": {
                     "200": {
                         "description": "OK",
@@ -2601,6 +2637,9 @@ const docTemplate = `{
                 "id": {
                     "type": "string"
                 },
+                "module": {
+                    "type": "string"
+                },
                 "isActive": {
                     "type": "boolean"
                 },
@@ -2760,10 +2799,96 @@ const docTemplate = `{
                 }
             }
         },
+        "dto.BookingDetailsAddonResponse": {
+            "type": "object",
+            "properties": {
+                "addon": {
+                    "$ref": "#/definitions/dto.AddonResponse"
+                },
+                "addonId": {
+                    "type": "string"
+                },
+                "quantity": {
+                    "type": "integer"
+                }
+            }
+        },
+        "dto.BookingDetailsResponse": {
+            "type": "object",
+            "properties": {
+                "addons": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dto.BookingDetailsAddonResponse"
+                    }
+                },
+                "adminNotes": {
+                    "description": "Admin-only notes for this booking",
+                    "type": "string"
+                },
+                "createdAt": {
+                    "description": "ISO 8601 datetime",
+                    "type": "string"
+                },
+                "customer": {
+                    "$ref": "#/definitions/dto.CustomerInfo"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "package": {
+                    "$ref": "#/definitions/dto.PackageResponse"
+                },
+                "packageId": {
+                    "type": "string"
+                },
+                "paymentScreenshotUrl": {
+                    "type": "string"
+                },
+                "slots": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dto.BookingDetailsSlotResponse"
+                    }
+                },
+                "status": {
+                    "description": "PENDING | APPROVED | REJECTED | COMPLETED",
+                    "type": "string"
+                },
+                "totalPrice": {
+                    "type": "number"
+                },
+                "updatedAt": {
+                    "description": "ISO 8601 datetime",
+                    "type": "string"
+                }
+            }
+        },
+        "dto.BookingDetailsSlotResponse": {
+            "type": "object",
+            "properties": {
+                "date": {
+                    "description": "ISO date string (YYYY-MM-DD)",
+                    "type": "string"
+                },
+                "theme": {
+                    "$ref": "#/definitions/dto.ThemeResponse"
+                },
+                "themeId": {
+                    "description": "Foreign key to Theme",
+                    "type": "string"
+                },
+                "time": {
+                    "description": "Time in HH:mm format",
+                    "type": "string"
+                }
+            }
+        },
         "dto.CreateAddonRequest": {
             "type": "object",
             "required": [
                 "id",
+                "module",
                 "name",
                 "price"
             ],
@@ -2774,6 +2899,9 @@ const docTemplate = `{
                 "id": {
                     "type": "string",
                     "maxLength": 50
+                },
+                "module": {
+                    "type": "string"
                 },
                 "name": {
                     "type": "string"
@@ -2792,6 +2920,7 @@ const docTemplate = `{
             "required": [
                 "durationMinutes",
                 "id",
+                "module",
                 "name",
                 "price"
             ],
@@ -2815,6 +2944,9 @@ const docTemplate = `{
                 "imageUrl": {
                     "type": "string"
                 },
+                "module": {
+                    "type": "string"
+                },
                 "name": {
                     "type": "string"
                 },
@@ -2836,6 +2968,7 @@ const docTemplate = `{
                 "description",
                 "id",
                 "imageUrl",
+                "module",
                 "name"
             ],
             "properties": {
@@ -2847,6 +2980,9 @@ const docTemplate = `{
                     "maxLength": 50
                 },
                 "imageUrl": {
+                    "type": "string"
+                },
+                "module": {
                     "type": "string"
                 },
                 "name": {
@@ -2920,6 +3056,9 @@ const docTemplate = `{
                 },
                 "isActive": {
                     "type": "boolean"
+                },
+                "module": {
+                    "type": "string"
                 },
                 "name": {
                     "type": "string"
@@ -3021,6 +3160,9 @@ const docTemplate = `{
                 "isActive": {
                     "type": "boolean"
                 },
+                "module": {
+                    "type": "string"
+                },
                 "name": {
                     "type": "string"
                 },
@@ -3034,6 +3176,7 @@ const docTemplate = `{
             "type": "object",
             "required": [
                 "id",
+                "module",
                 "name",
                 "price"
             ],
@@ -3047,6 +3190,9 @@ const docTemplate = `{
                 },
                 "isActive": {
                     "type": "boolean"
+                },
+                "module": {
+                    "type": "string"
                 },
                 "name": {
                     "type": "string"
@@ -3133,6 +3279,7 @@ const docTemplate = `{
             "required": [
                 "durationMinutes",
                 "id",
+                "module",
                 "name",
                 "price"
             ],
@@ -3159,6 +3306,9 @@ const docTemplate = `{
                 "isActive": {
                     "type": "boolean"
                 },
+                "module": {
+                    "type": "string"
+                },
                 "name": {
                     "type": "string"
                 },
@@ -3180,6 +3330,7 @@ const docTemplate = `{
                 "description",
                 "id",
                 "imageUrl",
+                "module",
                 "name"
             ],
             "properties": {
@@ -3195,6 +3346,9 @@ const docTemplate = `{
                 },
                 "isActive": {
                     "type": "boolean"
+                },
+                "module": {
+                    "type": "string"
                 },
                 "name": {
                     "type": "string"

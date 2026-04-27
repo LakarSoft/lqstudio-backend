@@ -12,6 +12,7 @@ import (
 	"lqstudio-backend/pkg/email"
 	"lqstudio-backend/pkg/errors"
 	"lqstudio-backend/pkg/metrics"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -55,7 +56,7 @@ func NewBookingService(
 }
 
 // CreateBooking creates a new booking with availability checking
-func (s *BookingService) CreateBooking(ctx context.Context, req *dto.BookingRequest) (*dto.BookingResponse, error) {
+func (s *BookingService) CreateBooking(ctx context.Context, req *dto.BookingRequest) (*dto.BookingDetailsResponse, error) {
 	// 1. Validate and get package
 	pkg, err := s.packageRepo.GetByID(ctx, req.PackageID)
 	if err != nil {
@@ -72,27 +73,40 @@ func (s *BookingService) CreateBooking(ctx context.Context, req *dto.BookingRequ
 
 	// 2. Validate slot count and handle theme assignment
 	requiredSlots := pkg.RequiredSlots()
-	isStudioLevel := requiredSlots == 3
+	if requiredSlots <= 0 {
+		return nil, errors.NewBadRequestError(fmt.Sprintf("Package '%s' has invalid duration", req.PackageID))
+	}
+	isStudioLevel := pkg.Module == models.ModuleRaya && requiredSlots == 3
+	requestedSlots := append([]dto.SlotRequest(nil), req.Slots...)
+	requestedAddons := append([]dto.AddonRequest(nil), req.Addons...)
+	themesByID := map[string]*models.Theme{}
+
+	if err := validateBookingSlotTimes(requestedSlots, pkg, s.openHour, s.closeHour); err != nil {
+		return nil, err
+	}
 
 	if isStudioLevel {
 		// Studio-level packages (60 min) book ALL active themes.
 		// Frontend sends only the 3 time slots — backend auto-assigns every active theme.
-		if len(req.Slots) != requiredSlots {
-			return nil, errors.NewInvalidSlotCountError(requiredSlots, len(req.Slots))
+		if len(requestedSlots) != requiredSlots {
+			return nil, errors.NewInvalidSlotCountError(requiredSlots, len(requestedSlots))
 		}
 
 		// Fetch all active themes
-		activeThemes, err := s.themeRepo.GetActive(ctx)
+		activeThemes, err := s.themeRepo.GetActive(ctx, pkg.Module)
 		if err != nil {
 			return nil, errors.NewDatabaseError("get active themes", err)
 		}
 		if len(activeThemes) == 0 {
 			return nil, errors.NewBadRequestError("No active themes available for studio booking")
 		}
+		for _, theme := range activeThemes {
+			themesByID[theme.ID] = theme
+		}
 
 		// Check availability: every active theme must be free for every requested time slot
 		for _, theme := range activeThemes {
-			for _, slot := range req.Slots {
+			for _, slot := range requestedSlots {
 				bookedSlots, err := s.bookingRepo.GetBookedSlotsForThemeAndDate(ctx, theme.ID, slot.Date)
 				if err != nil {
 					return nil, errors.NewDatabaseError(fmt.Sprintf("check availability for theme %s on %s", theme.ID, slot.Date), err)
@@ -106,9 +120,9 @@ func (s *BookingService) CreateBooking(ctx context.Context, req *dto.BookingRequ
 		}
 
 		// Expand slots: one entry per (theme × time slot), so the repository saves the full matrix
-		expanded := make([]dto.SlotRequest, 0, len(activeThemes)*len(req.Slots))
+		expanded := make([]dto.SlotRequest, 0, len(activeThemes)*len(requestedSlots))
 		for _, theme := range activeThemes {
-			for _, slot := range req.Slots {
+			for _, slot := range requestedSlots {
 				expanded = append(expanded, dto.SlotRequest{
 					Date:    slot.Date,
 					Time:    slot.Time,
@@ -116,17 +130,17 @@ func (s *BookingService) CreateBooking(ctx context.Context, req *dto.BookingRequ
 				})
 			}
 		}
-		req.Slots = expanded
+		requestedSlots = expanded
 
 	} else {
-		// 1/2-slot packages: frontend supplies explicit theme per slot
-		if len(req.Slots) != requiredSlots {
-			return nil, errors.NewInvalidSlotCountError(requiredSlots, len(req.Slots))
+		// Non-studio packages, including convocation, require an explicit theme per slot.
+		if len(requestedSlots) != requiredSlots {
+			return nil, errors.NewInvalidSlotCountError(requiredSlots, len(requestedSlots))
 		}
 
 		// Validate all themes exist and are active
-		themeIDs := make([]string, len(req.Slots))
-		for i, slot := range req.Slots {
+		themeIDs := make([]string, len(requestedSlots))
+		for i, slot := range requestedSlots {
 			if slot.ThemeID == "" {
 				return nil, errors.NewBadRequestError("themeId is required for each slot in this package type")
 			}
@@ -145,10 +159,14 @@ func (s *BookingService) CreateBooking(ctx context.Context, req *dto.BookingRequ
 			if !theme.IsActive {
 				return nil, errors.NewBadRequestError(fmt.Sprintf("Theme '%s' is not active", themeID))
 			}
+			if theme.Module != pkg.Module {
+				return nil, errors.NewBadRequestError(fmt.Sprintf("Theme '%s' does not belong to package module '%s'", themeID, pkg.Module))
+			}
+			themesByID[theme.ID] = theme
 		}
 
 		// Check slot availability for each (theme_id, date, time) combination
-		for _, slot := range req.Slots {
+		for _, slot := range requestedSlots {
 			bookedSlots, err := s.bookingRepo.GetBookedSlotsForThemeAndDate(ctx, slot.ThemeID, slot.Date)
 			if err != nil {
 				return nil, errors.NewDatabaseError(fmt.Sprintf("check availability for theme %s on %s", slot.ThemeID, slot.Date), err)
@@ -161,74 +179,23 @@ func (s *BookingService) CreateBooking(ctx context.Context, req *dto.BookingRequ
 		}
 	}
 
-	// 4. Validate all addons exist and are active
-	if len(req.Addons) > 0 {
-		addonIDs := make([]string, len(req.Addons))
-		for i, addon := range req.Addons {
-			addonIDs[i] = addon.AddonID
-		}
-
-		addons, err := s.addonRepo.GetByIDs(ctx, addonIDs)
-		if err != nil {
-			return nil, errors.NewDatabaseError("get addons", err)
-		}
-
-		// Validate all addons found and are active
-		addonMap := make(map[string]*models.AddOn)
-		for _, addon := range addons {
-			addonMap[addon.ID] = addon
-		}
-
-		for _, reqAddon := range req.Addons {
-			addon, exists := addonMap[reqAddon.AddonID]
-			if !exists {
-				return nil, errors.NewAddonNotFoundError(reqAddon.AddonID)
-			}
-			if !addon.IsActive {
-				return nil, errors.NewBadRequestError(fmt.Sprintf("Addon '%s' is not active", reqAddon.AddonID))
-			}
-		}
-	}
-
-	// 5. Calculate prices
+	// 4. Calculate prices
 	// Package amount = package.FinalPrice() (which already applies discount)
 	packageAmount := pkg.FinalPrice()
 
-	// Addons amount = sum of (addon.Price * quantity) for each selected addon
-	addonsAmount := decimal.Zero
-	if len(req.Addons) > 0 {
-		addonIDs := make([]string, len(req.Addons))
-		for i, addon := range req.Addons {
-			addonIDs[i] = addon.AddonID
-		}
-
-		addons, err := s.addonRepo.GetByIDs(ctx, addonIDs)
-		if err != nil {
-			return nil, fmt.Errorf("failed to get addons for price calculation: %w", err)
-		}
-
-		// Build addon price map
-		addonPriceMap := make(map[string]decimal.Decimal)
-		for _, addon := range addons {
-			addonPriceMap[addon.ID] = addon.Price
-		}
-
-		// Calculate addons total
-		for _, reqAddon := range req.Addons {
-			price, exists := addonPriceMap[reqAddon.AddonID]
-			if !exists {
-				continue // Already validated above
-			}
-			itemTotal := price.Mul(decimal.NewFromInt(int64(reqAddon.Quantity)))
-			addonsAmount = addonsAmount.Add(itemTotal)
-		}
+	addonsAmount, addonsByID, err := s.validateAndPriceBookingAddons(ctx, pkg, requestedAddons)
+	if err != nil {
+		return nil, err
 	}
 
 	// 7. Generate unique booking ID
 	bookingID := generateBookingID()
 
 	// 8. Create booking using DTO helper
-	booking := req.ToBookingModel(packageAmount, addonsAmount)
+	requestForModel := *req
+	requestForModel.Slots = requestedSlots
+	requestForModel.Addons = requestedAddons
+	booking := requestForModel.ToBookingModel(packageAmount, addonsAmount)
 	booking.ID = bookingID
 
 	// 9. Create booking in repository
@@ -255,11 +222,99 @@ func (s *BookingService) CreateBooking(ctx context.Context, req *dto.BookingRequ
 	}(bookingID)
 
 	// 11. Return booking response
-	return dto.ToBookingResponse(booking), nil
+	return dto.ToBookingDetailsResponse(booking, pkg, themesByID, addonsByID), nil
+}
+
+func validateBookingSlotTimes(slots []dto.SlotRequest, pkg *models.Package, openHour, closeHour int) error {
+	slotDuration := int(pkg.SlotDurationMinutes())
+	if slotDuration <= 0 {
+		return errors.NewBadRequestError(fmt.Sprintf("Package '%s' has invalid slot duration", pkg.ID))
+	}
+
+	openMinutes := openHour * 60
+	closeMinutes := closeHour * 60
+	for i := range slots {
+		slots[i].Date = strings.TrimSpace(slots[i].Date)
+		slots[i].Time = strings.TrimSpace(slots[i].Time)
+		slots[i].ThemeID = strings.TrimSpace(slots[i].ThemeID)
+
+		if slots[i].Date == "" {
+			return errors.NewBadRequestError(fmt.Sprintf("date is required for slot %d", i+1))
+		}
+		if _, err := time.Parse("2006-01-02", slots[i].Date); err != nil {
+			return errors.NewBadRequestError(fmt.Sprintf("invalid date format for slot %d: expected YYYY-MM-DD, got '%s'", i+1, slots[i].Date))
+		}
+
+		if slots[i].Time == "" {
+			return errors.NewBadRequestError(fmt.Sprintf("time is required for slot %d", i+1))
+		}
+		parsedTime, err := time.Parse("3:04 PM", slots[i].Time)
+		if err != nil {
+			return errors.NewBadRequestError(fmt.Sprintf("invalid time format for slot %d: expected format like '10:30 AM', got '%s'", i+1, slots[i].Time))
+		}
+
+		slotMinutes := parsedTime.Hour()*60 + parsedTime.Minute()
+		if slotMinutes < openMinutes || slotMinutes >= closeMinutes {
+			return errors.NewBadRequestError(fmt.Sprintf("slot %d time '%s' is outside studio hours", i+1, slots[i].Time))
+		}
+		if (slotMinutes-openMinutes)%slotDuration != 0 {
+			return errors.NewBadRequestError(fmt.Sprintf("slot %d time '%s' must align with %d-minute %s intervals", i+1, slots[i].Time, slotDuration, pkg.Module))
+		}
+	}
+
+	return nil
+}
+
+func (s *BookingService) validateAndPriceBookingAddons(ctx context.Context, pkg *models.Package, requestedAddons []dto.AddonRequest) (decimal.Decimal, map[string]*models.AddOn, error) {
+	if len(requestedAddons) == 0 {
+		return decimal.Zero, map[string]*models.AddOn{}, nil
+	}
+
+	addonIDs := make([]string, len(requestedAddons))
+	for i := range requestedAddons {
+		addonID := strings.TrimSpace(requestedAddons[i].AddonID)
+		if addonID == "" {
+			return decimal.Zero, nil, errors.NewBadRequestError(fmt.Sprintf("addonId is required for addon %d", i+1))
+		}
+		if requestedAddons[i].Quantity <= 0 {
+			return decimal.Zero, nil, errors.NewBadRequestError(fmt.Sprintf("quantity must be at least 1 for addon '%s'", addonID))
+		}
+		requestedAddons[i].AddonID = addonID
+		addonIDs[i] = addonID
+	}
+
+	addons, err := s.addonRepo.GetByIDs(ctx, addonIDs)
+	if err != nil {
+		return decimal.Zero, nil, errors.NewDatabaseError("get addons", err)
+	}
+
+	addonMap := make(map[string]*models.AddOn, len(addons))
+	for _, addon := range addons {
+		addonMap[addon.ID] = addon
+	}
+
+	total := decimal.Zero
+	for _, reqAddon := range requestedAddons {
+		addonID := reqAddon.AddonID
+		addon, exists := addonMap[addonID]
+		if !exists {
+			return decimal.Zero, nil, errors.NewAddonNotFoundError(addonID)
+		}
+		if !addon.IsActive {
+			return decimal.Zero, nil, errors.NewBadRequestError(fmt.Sprintf("Addon '%s' is not active", addonID))
+		}
+		if addon.Module != pkg.Module {
+			return decimal.Zero, nil, errors.NewBadRequestError(fmt.Sprintf("Addon '%s' does not belong to package module '%s'", addonID, pkg.Module))
+		}
+
+		total = total.Add(addon.Price.Mul(decimal.NewFromInt(int64(reqAddon.Quantity))))
+	}
+
+	return total, addonMap, nil
 }
 
 // GetBookingByID retrieves a booking by ID
-func (s *BookingService) GetBookingByID(ctx context.Context, bookingID string) (*dto.BookingResponse, error) {
+func (s *BookingService) GetBookingByID(ctx context.Context, bookingID string) (*dto.BookingDetailsResponse, error) {
 	booking, err := s.bookingRepo.GetByID(ctx, bookingID)
 	if err != nil {
 		if stderr.Is(err, pgx.ErrNoRows) {
@@ -268,7 +323,56 @@ func (s *BookingService) GetBookingByID(ctx context.Context, bookingID string) (
 		return nil, errors.NewDatabaseError("get booking", err)
 	}
 
-	return dto.ToBookingResponse(booking), nil
+	pkg, themesByID, addonsByID, err := s.loadBookingRelatedDetails(ctx, booking)
+	if err != nil {
+		return nil, err
+	}
+
+	return dto.ToBookingDetailsResponse(booking, pkg, themesByID, addonsByID), nil
+}
+
+func (s *BookingService) loadBookingRelatedDetails(ctx context.Context, booking *models.Booking) (*models.Package, map[string]*models.Theme, map[string]*models.AddOn, error) {
+	pkg, err := s.packageRepo.GetByID(ctx, booking.PackageID)
+	if err != nil {
+		return nil, nil, nil, errors.NewDatabaseError("get package", err)
+	}
+
+	themesByID := make(map[string]*models.Theme, len(booking.Slots))
+	for _, slot := range booking.Slots {
+		if slot.ThemeID == "" {
+			continue
+		}
+		if _, exists := themesByID[slot.ThemeID]; exists {
+			continue
+		}
+
+		theme, err := s.themeRepo.GetByID(ctx, slot.ThemeID)
+		if err != nil {
+			return nil, nil, nil, errors.NewDatabaseError(fmt.Sprintf("get theme %s", slot.ThemeID), err)
+		}
+		themesByID[slot.ThemeID] = theme
+	}
+
+	addonIDs := make([]string, 0, len(booking.Addons))
+	for _, addon := range booking.Addons {
+		if addon.AddonID == "" {
+			continue
+		}
+		addonIDs = append(addonIDs, addon.AddonID)
+	}
+
+	addonsByID := map[string]*models.AddOn{}
+	if len(addonIDs) > 0 {
+		addons, err := s.addonRepo.GetByIDs(ctx, uniqueStrings(addonIDs))
+		if err != nil {
+			return nil, nil, nil, errors.NewDatabaseError("get addons", err)
+		}
+		for _, addon := range addons {
+			addonsByID[addon.ID] = addon
+		}
+	}
+
+	return pkg, themesByID, addonsByID, nil
 }
 
 // ListBookings lists bookings with comprehensive filters, sorting, and pagination
@@ -366,7 +470,8 @@ func (s *BookingService) UpdateBookingStatus(ctx context.Context, bookingID stri
 
 		// Send appropriate email based on status
 		var emailErr error
-		if status == models.BookingStatusApproved {
+		switch status {
+		case models.BookingStatusApproved:
 			emailErr = s.emailClient.SendBookingApproval(
 				booking.CustomerEmail,
 				booking,
@@ -385,7 +490,7 @@ func (s *BookingService) UpdateBookingStatus(ctx context.Context, bookingID stri
 				metrics.EmailNotificationsTotal.WithLabelValues("booking_approval").Inc()
 				response.EmailNotificationSent = true
 			}
-		} else if status == models.BookingStatusRejected {
+		case models.BookingStatusRejected:
 			emailErr = s.emailClient.SendBookingRejection(
 				booking.CustomerEmail,
 				booking,
@@ -496,7 +601,7 @@ func (s *BookingService) UpdateBooking(ctx context.Context, bookingID string, re
 
 	// 4. Validate slot count and handle theme assignment (mirrors CreateBooking logic)
 	requiredSlots := pkg.RequiredSlots()
-	isStudioLevel := requiredSlots == 3
+	isStudioLevel := pkg.Module == models.ModuleRaya && requiredSlots == 3
 
 	if isStudioLevel {
 		if len(req.Slots) != requiredSlots {
@@ -510,7 +615,7 @@ func (s *BookingService) UpdateBooking(ctx context.Context, bookingID string, re
 			}
 		}
 
-		activeThemes, err := s.themeRepo.GetActive(ctx)
+		activeThemes, err := s.themeRepo.GetActive(ctx, pkg.Module)
 		if err != nil {
 			return nil, errors.NewDatabaseError("get active themes", err)
 		}
@@ -580,6 +685,9 @@ func (s *BookingService) UpdateBooking(ctx context.Context, bookingID string, re
 			}
 			if !theme.IsActive {
 				return nil, errors.NewBadRequestError(fmt.Sprintf("Theme '%s' is not active", themeID))
+			}
+			if theme.Module != pkg.Module {
+				return nil, errors.NewBadRequestError(fmt.Sprintf("Theme '%s' does not belong to package module '%s'", themeID, pkg.Module))
 			}
 		}
 
@@ -682,11 +790,14 @@ func (s *BookingService) UpdateBooking(ctx context.Context, bookingID string, re
 }
 
 // GetAvailability checks available time slots for a theme on a date
-// If themeID is "all", it returns aggregated availability across all active themes
+// If themeID is "all", it returns aggregated availability for Raya themes only.
 func (s *BookingService) GetAvailability(ctx context.Context, req *dto.AvailabilityRequest) (*dto.AvailabilityResponse, error) {
+	var pkg *models.Package
+
 	// Optional: Validate package exists if packageID is provided
 	if req.PackageID != "" {
-		_, err := s.packageRepo.GetByID(ctx, req.PackageID)
+		var err error
+		pkg, err = s.packageRepo.GetByID(ctx, req.PackageID)
 		if err != nil {
 			if stderr.Is(err, pgx.ErrNoRows) {
 				return nil, errors.NewPackageNotFoundError(req.PackageID)
@@ -697,21 +808,35 @@ func (s *BookingService) GetAvailability(ctx context.Context, req *dto.Availabil
 
 	// Check if requesting availability for all themes
 	if req.ThemeID == "all" {
-		return s.getAvailabilityForAllThemes(ctx, req)
+		module := models.ModuleRaya
+		if pkg != nil {
+			module = pkg.Module
+		}
+		if module == models.ModuleConvocation {
+			return nil, errors.NewBadRequestError("Convocation availability supports single-theme selection only")
+		}
+		return s.getAvailabilityForAllThemes(ctx, req, module)
 	}
 
-	// Single theme availability (existing logic)
 	// Validate theme exists
-	_, err := s.themeRepo.GetByID(ctx, req.ThemeID)
+	theme, err := s.themeRepo.GetByID(ctx, req.ThemeID)
 	if err != nil {
 		if stderr.Is(err, pgx.ErrNoRows) {
 			return nil, errors.NewThemeNotFoundError(req.ThemeID)
 		}
 		return nil, errors.NewDatabaseError("get theme", err)
 	}
+	if pkg != nil && theme.Module != pkg.Module {
+		return nil, errors.NewBadRequestError(fmt.Sprintf("Theme '%s' does not belong to package module '%s'", req.ThemeID, pkg.Module))
+	}
+
+	slotDuration := models.RayaSlotDurationMinutes
+	if theme.Module == models.ModuleConvocation {
+		slotDuration = models.ConvocationSlotDurationMinutes
+	}
 
 	// Generate time slots based on configured studio hours
-	allSlots := generateTimeSlots(s.openHour, s.closeHour)
+	allSlots := generateTimeSlots(s.openHour, s.closeHour, slotDuration)
 
 	// Get booked slots for this theme on this date
 	bookedSlots, err := s.bookingRepo.GetBookedSlotsForThemeAndDate(ctx, req.ThemeID, req.Date)
@@ -744,16 +869,16 @@ func (s *BookingService) GetAvailability(ctx context.Context, req *dto.Availabil
 // getAvailabilityForAllThemes checks availability across all active themes
 // A time slot is available ONLY if ALL themes are available (no themes booked)
 // If even one theme is booked at a time slot, it shows as unavailable
-func (s *BookingService) getAvailabilityForAllThemes(ctx context.Context, req *dto.AvailabilityRequest) (*dto.AvailabilityResponse, error) {
-	// Get all active themes
-	activeThemes, err := s.themeRepo.GetActive(ctx)
+func (s *BookingService) getAvailabilityForAllThemes(ctx context.Context, req *dto.AvailabilityRequest, module string) (*dto.AvailabilityResponse, error) {
+	// Get all active themes for the selected module.
+	activeThemes, err := s.themeRepo.GetActive(ctx, module)
 	if err != nil {
 		return nil, errors.NewDatabaseError("get active themes", err)
 	}
 
 	// If no active themes, all slots are unavailable
 	if len(activeThemes) == 0 {
-		allSlots := generateTimeSlots(s.openHour, s.closeHour)
+		allSlots := generateTimeSlots(s.openHour, s.closeHour, models.RayaSlotDurationMinutes)
 		availabilitySlots := make([]dto.AvailableSlotInfo, len(allSlots))
 		for i, slotTime := range allSlots {
 			availabilitySlots[i] = dto.AvailableSlotInfo{
@@ -766,9 +891,13 @@ func (s *BookingService) getAvailabilityForAllThemes(ctx context.Context, req *d
 			Slots: availabilitySlots,
 		}, nil
 	}
+	activeThemeIDs := make(map[string]bool, len(activeThemes))
+	for _, theme := range activeThemes {
+		activeThemeIDs[theme.ID] = true
+	}
 
 	// Generate time slots based on configured studio hours
-	allSlots := generateTimeSlots(s.openHour, s.closeHour)
+	allSlots := generateTimeSlots(s.openHour, s.closeHour, models.RayaSlotDurationMinutes)
 
 	// Get all booked slots for all themes on this date
 	bookedSlots, err := s.bookingRepo.GetBookedSlotsForAllThemesAndDate(ctx, req.Date)
@@ -779,6 +908,9 @@ func (s *BookingService) getAvailabilityForAllThemes(ctx context.Context, req *d
 	// Build a map: time -> set of booked theme IDs
 	bookedThemesByTime := make(map[string]map[string]bool)
 	for _, slot := range bookedSlots {
+		if !activeThemeIDs[slot.ThemeID] {
+			continue
+		}
 		if bookedThemesByTime[slot.Time] == nil {
 			bookedThemesByTime[slot.Time] = make(map[string]bool)
 		}
@@ -926,10 +1058,13 @@ func generateBookingID() string {
 	return fmt.Sprintf("bkg-%d-%s", timestamp, randomHex)
 }
 
-// generateTimeSlots generates time slots in 20-minute intervals between openHour and closeHour.
+// generateTimeSlots generates time slots in the requested interval between openHour and closeHour.
 // Times are formatted in 12-hour format (e.g., "10:00 AM", "2:00 PM").
-func generateTimeSlots(openHour, closeHour int) []string {
+func generateTimeSlots(openHour, closeHour, intervalMinutes int) []string {
 	slots := []string{}
+	if intervalMinutes <= 0 {
+		return slots
+	}
 	hour := openHour
 	minute := 0
 
@@ -941,10 +1076,10 @@ func generateTimeSlots(openHour, closeHour int) []string {
 		t := time.Date(0, 1, 1, hour, minute, 0, 0, time.UTC)
 		slots = append(slots, t.Format("3:04 PM"))
 
-		minute += 20
+		minute += intervalMinutes
 		if minute >= 60 {
-			minute = 0
-			hour++
+			hour += minute / 60
+			minute = minute % 60
 		}
 	}
 
