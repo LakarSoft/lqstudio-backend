@@ -28,8 +28,8 @@ func (s *ThemeService) GetByID(ctx context.Context, id string) (*dto.ThemeRespon
 }
 
 // GetActive retrieves active themes for customers
-func (s *ThemeService) GetActive(ctx context.Context) ([]*dto.ThemeResponse, error) {
-	themes, err := s.themeRepo.GetActive(ctx)
+func (s *ThemeService) GetActive(ctx context.Context, module string) ([]*dto.ThemeResponse, error) {
+	themes, err := s.themeRepo.GetActive(ctx, module)
 	if err != nil {
 		return nil, err
 	}
@@ -38,8 +38,8 @@ func (s *ThemeService) GetActive(ctx context.Context) ([]*dto.ThemeResponse, err
 }
 
 // ListAll retrieves all themes (admin)
-func (s *ThemeService) ListAll(ctx context.Context) ([]*dto.ThemeResponse, error) {
-	themes, err := s.themeRepo.ListAll(ctx)
+func (s *ThemeService) ListAll(ctx context.Context, module string) ([]*dto.ThemeResponse, error) {
+	themes, err := s.themeRepo.ListAll(ctx, module)
 	if err != nil {
 		return nil, err
 	}
@@ -51,6 +51,10 @@ func (s *ThemeService) ListAll(ctx context.Context) ([]*dto.ThemeResponse, error
 func (s *ThemeService) Create(ctx context.Context, req *dto.CreateThemeRequest) (*dto.ThemeResponse, error) {
 	// Convert DTO to domain model
 	theme := req.ToThemeModel()
+
+	if err := theme.ValidateTheme(); err != nil {
+		return nil, err
+	}
 
 	// Create theme
 	if err := s.themeRepo.Create(ctx, theme); err != nil {
@@ -69,6 +73,10 @@ func (s *ThemeService) Update(ctx context.Context, id string, req *dto.UpdateThe
 
 	// Convert DTO to domain model
 	theme := req.ToThemeModel()
+
+	if err := theme.ValidateTheme(); err != nil {
+		return nil, err
+	}
 
 	// Update theme
 	if err := s.themeRepo.Update(ctx, theme); err != nil {

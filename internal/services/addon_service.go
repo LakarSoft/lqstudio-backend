@@ -28,8 +28,8 @@ func (s *AddonService) GetByID(ctx context.Context, id string) (*dto.AddonRespon
 }
 
 // GetActive retrieves active add-ons for customers
-func (s *AddonService) GetActive(ctx context.Context) ([]*dto.AddonResponse, error) {
-	addons, err := s.addonRepo.GetActive(ctx)
+func (s *AddonService) GetActive(ctx context.Context, module string) ([]*dto.AddonResponse, error) {
+	addons, err := s.addonRepo.GetActive(ctx, module)
 	if err != nil {
 		return nil, err
 	}
@@ -38,8 +38,8 @@ func (s *AddonService) GetActive(ctx context.Context) ([]*dto.AddonResponse, err
 }
 
 // ListAll retrieves all add-ons (admin)
-func (s *AddonService) ListAll(ctx context.Context) ([]*dto.AddonResponse, error) {
-	addons, err := s.addonRepo.ListAll(ctx)
+func (s *AddonService) ListAll(ctx context.Context, module string) ([]*dto.AddonResponse, error) {
+	addons, err := s.addonRepo.ListAll(ctx, module)
 	if err != nil {
 		return nil, err
 	}
@@ -51,6 +51,10 @@ func (s *AddonService) ListAll(ctx context.Context) ([]*dto.AddonResponse, error
 func (s *AddonService) Create(ctx context.Context, req *dto.CreateAddonRequest) (*dto.AddonResponse, error) {
 	// Convert DTO to domain model
 	addon := req.ToAddonModel()
+
+	if err := addon.ValidateAddon(); err != nil {
+		return nil, err
+	}
 
 	// Create addon
 	if err := s.addonRepo.Create(ctx, addon); err != nil {
@@ -69,6 +73,10 @@ func (s *AddonService) Update(ctx context.Context, id string, req *dto.UpdateAdd
 
 	// Convert DTO to domain model
 	addon := req.ToAddonModel()
+
+	if err := addon.ValidateAddon(); err != nil {
+		return nil, err
+	}
 
 	// Update addon
 	if err := s.addonRepo.Update(ctx, addon); err != nil {

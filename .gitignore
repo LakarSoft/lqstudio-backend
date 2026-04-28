@@ -47,3 +47,8 @@ docs/diagrams
 docs/plans
 .claude*
 CLAUDE*
+
+# codex
+AGENTS.md
+PLANS.md
+WALKTHROUGHS.md

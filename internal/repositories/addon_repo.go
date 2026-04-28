@@ -2,6 +2,7 @@ package repositories
 
 import (
 	"context"
+	"strings"
 
 	"lqstudio-backend/internal/database/sqlc"
 	"lqstudio-backend/internal/models"
@@ -36,8 +37,8 @@ func (r *AddonRepository) GetByIDs(ctx context.Context, ids []string) ([]*models
 }
 
 // GetActive retrieves all active addons
-func (r *AddonRepository) GetActive(ctx context.Context) ([]*models.AddOn, error) {
-	results, err := r.queries.GetActiveAddons(ctx)
+func (r *AddonRepository) GetActive(ctx context.Context, module string) ([]*models.AddOn, error) {
+	results, err := r.queries.GetActiveAddons(ctx, normalizeAddonModuleFilter(module))
 	if err != nil {
 		return nil, err
 	}
@@ -45,8 +46,8 @@ func (r *AddonRepository) GetActive(ctx context.Context) ([]*models.AddOn, error
 }
 
 // ListAll retrieves all addons
-func (r *AddonRepository) ListAll(ctx context.Context) ([]*models.AddOn, error) {
-	results, err := r.queries.ListAllAddons(ctx)
+func (r *AddonRepository) ListAll(ctx context.Context, module string) ([]*models.AddOn, error) {
+	results, err := r.queries.ListAllAddons(ctx, normalizeAddonModuleFilter(module))
 	if err != nil {
 		return nil, err
 	}
@@ -57,6 +58,7 @@ func (r *AddonRepository) ListAll(ctx context.Context) ([]*models.AddOn, error) 
 func (r *AddonRepository) Create(ctx context.Context, addon *models.AddOn) error {
 	params := sqlc.CreateAddonParams{
 		ID:          addon.ID,
+		Module:      addon.Module,
 		Name:        addon.Name,
 		Description: StringPtr(addon.Description),
 		Price:       DecimalToNumeric(addon.Price),
@@ -77,6 +79,7 @@ func (r *AddonRepository) Create(ctx context.Context, addon *models.AddOn) error
 func (r *AddonRepository) Update(ctx context.Context, addon *models.AddOn) error {
 	params := sqlc.UpdateAddonParams{
 		Column1:     addon.ID,
+		Module:      addon.Module,
 		Name:        addon.Name,
 		Description: StringPtr(addon.Description),
 		Price:       DecimalToNumeric(addon.Price),
@@ -111,6 +114,7 @@ func (r *AddonRepository) ToggleActive(ctx context.Context, id string) (*models.
 func (r *AddonRepository) toModel(row sqlc.Addon) *models.AddOn {
 	return &models.AddOn{
 		ID:          row.ID,
+		Module:      row.Module,
 		Name:        row.Name,
 		Description: StringVal(row.Description),
 		Price:       NumericToDecimal(row.Price),
@@ -119,6 +123,10 @@ func (r *AddonRepository) toModel(row sqlc.Addon) *models.AddOn {
 		CreatedAt:   TimestamptzToTime(row.CreatedAt),
 		UpdatedAt:   TimestamptzToTime(row.UpdatedAt),
 	}
+}
+
+func normalizeAddonModuleFilter(module string) string {
+	return strings.TrimSpace(strings.ToLower(module))
 }
 
 func (r *AddonRepository) toModels(rows []sqlc.Addon) []*models.AddOn {

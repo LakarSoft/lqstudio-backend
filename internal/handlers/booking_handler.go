@@ -32,12 +32,24 @@ func NewBookingHandler(
 // @Summary Create new booking
 // @Description Create a new booking (customer-facing, no auth required).
 // @Description
-// @Description **Slot rules depend on the package type:**
+// @Description **Slot rules depend on the package module and package duration:**
 // @Description
-// @Description **1-slot / 2-slot packages** — send exactly 1 or 2 slots, each with a `themeId`:
+// @Description **Convocation packages** — send the required number of 30-minute slots, each with one `themeId` from the convocation module:
 // @Description ```json
 // @Description {
-// @Description   "packageId": "pkg-single",
+// @Description   "packageId": "pkg-convo-basic",
+// @Description   "slots": [
+// @Description     { "date": "2026-02-24", "time": "10:30 AM", "themeId": "theme-convo-1" }
+// @Description   ],
+// @Description   "addons": [],
+// @Description   "customer": { "name": "Anas", "email": "anas@example.com", "phone": "0123456789" }
+// @Description }
+// @Description ```
+// @Description
+// @Description **Raya non-studio packages** — send the required number of 20-minute slots, each with a `themeId` from the Raya module:
+// @Description ```json
+// @Description {
+// @Description   "packageId": "pkg-raya-single",
 // @Description   "slots": [
 // @Description     { "date": "2026-02-24", "time": "2:20 PM", "themeId": "theme-A" }
 // @Description   ],
@@ -46,8 +58,8 @@ func NewBookingHandler(
 // @Description }
 // @Description ```
 // @Description
-// @Description **Studio-level (3-slot / 60-min) packages** — send exactly 3 time slots **without** `themeId`.
-// @Description The backend automatically books every active theme for those 3 slots.
+// @Description **Raya studio-level (3-slot / 60-min) packages** — send exactly 3 time slots **without** `themeId`.
+// @Description The backend automatically books every active Raya theme for those 3 slots.
 // @Description Sending `themeId` is harmless but it will be ignored.
 // @Description ```json
 // @Description {
@@ -65,8 +77,8 @@ func NewBookingHandler(
 // @Accept json
 // @Produce json
 // @Param request body dto.BookingRequest true "Booking data"
-// @Success 201 {object} dto.ApiResponse{data=dto.BookingResponse}
-// @Failure 400 {object} dto.ApiResponse "Invalid request, wrong slot count, or missing themeId for non-studio package"
+// @Success 201 {object} dto.ApiResponse{data=dto.BookingDetailsResponse}
+// @Failure 400 {object} dto.ApiResponse "Invalid request, wrong slot count, invalid time interval, module mismatch, or missing themeId for non-studio package"
 // @Failure 404 {object} dto.ApiResponse "Package, theme, or addon not found"
 // @Failure 409 {object} dto.ApiResponse "One or more requested slots are already booked"
 // @Failure 500 {object} dto.ApiResponse
@@ -105,7 +117,7 @@ func (h *BookingHandler) CreateBooking(c echo.Context) error {
 // @Accept json
 // @Produce json
 // @Param id path string true "Booking ID"
-// @Success 200 {object} dto.ApiResponse{data=dto.BookingResponse}
+// @Success 200 {object} dto.ApiResponse{data=dto.BookingDetailsResponse}
 // @Failure 400 {object} dto.ApiResponse
 // @Failure 404 {object} dto.ApiResponse
 // @Failure 500 {object} dto.ApiResponse

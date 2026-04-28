@@ -343,6 +343,12 @@ func (r *BookingRepository) ListWithFilters(ctx context.Context, filters *dto.Bo
 		argIdx++
 	}
 
+	if filters.Module != "" {
+		conditions = append(conditions, fmt.Sprintf("EXISTS (SELECT 1 FROM packages p WHERE p.id = b.package_id AND p.module = $%d)", argIdx))
+		args = append(args, normalizeModuleFilter(filters.Module))
+		argIdx++
+	}
+
 	if filters.Search != "" {
 		conditions = append(conditions, fmt.Sprintf("(b.customer_name ILIKE $%d OR b.customer_email ILIKE $%d OR b.customer_phone ILIKE $%d)", argIdx, argIdx, argIdx))
 		args = append(args, "%"+filters.Search+"%")
@@ -380,10 +386,11 @@ func (r *BookingRepository) ListWithFilters(ctx context.Context, filters *dto.Bo
 		whereClause = "WHERE " + strings.Join(conditions, " AND ")
 	}
 
-	joinClause := ""
+	joins := []string{}
 	if needsSlotJoin {
-		joinClause = "LEFT JOIN booking_slots bs ON b.id = bs.booking_id"
+		joins = append(joins, "LEFT JOIN booking_slots bs ON b.id = bs.booking_id")
 	}
+	joinClause := strings.Join(joins, " ")
 
 	// Map sort field to SQL column name (whitelist to prevent injection)
 	orderColumn := "b.created_at"

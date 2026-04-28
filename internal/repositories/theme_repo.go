@@ -2,6 +2,7 @@ package repositories
 
 import (
 	"context"
+	"strings"
 
 	"lqstudio-backend/internal/database/sqlc"
 	"lqstudio-backend/internal/models"
@@ -27,8 +28,8 @@ func (r *ThemeRepository) GetByID(ctx context.Context, id string) (*models.Theme
 }
 
 // GetActive retrieves all active themes
-func (r *ThemeRepository) GetActive(ctx context.Context) ([]*models.Theme, error) {
-	results, err := r.queries.GetActiveThemes(ctx)
+func (r *ThemeRepository) GetActive(ctx context.Context, module string) ([]*models.Theme, error) {
+	results, err := r.queries.GetActiveThemes(ctx, normalizeThemeModuleFilter(module))
 	if err != nil {
 		return nil, err
 	}
@@ -36,8 +37,8 @@ func (r *ThemeRepository) GetActive(ctx context.Context) ([]*models.Theme, error
 }
 
 // ListAll retrieves all themes
-func (r *ThemeRepository) ListAll(ctx context.Context) ([]*models.Theme, error) {
-	results, err := r.queries.ListAllThemes(ctx)
+func (r *ThemeRepository) ListAll(ctx context.Context, module string) ([]*models.Theme, error) {
+	results, err := r.queries.ListAllThemes(ctx, normalizeThemeModuleFilter(module))
 	if err != nil {
 		return nil, err
 	}
@@ -48,6 +49,7 @@ func (r *ThemeRepository) ListAll(ctx context.Context) ([]*models.Theme, error) 
 func (r *ThemeRepository) Create(ctx context.Context, theme *models.Theme) error {
 	params := sqlc.CreateThemeParams{
 		ID:          theme.ID,
+		Module:      theme.Module,
 		Name:        theme.Name,
 		Description: theme.Description,
 		ImageUrl:    theme.ImageURL,
@@ -68,6 +70,7 @@ func (r *ThemeRepository) Create(ctx context.Context, theme *models.Theme) error
 func (r *ThemeRepository) Update(ctx context.Context, theme *models.Theme) error {
 	params := sqlc.UpdateThemeParams{
 		Column1:     theme.ID,
+		Module:      theme.Module,
 		Name:        theme.Name,
 		Description: theme.Description,
 		ImageUrl:    theme.ImageURL,
@@ -117,6 +120,7 @@ func (r *ThemeRepository) UpdateImageURL(ctx context.Context, id string, imageUR
 func (r *ThemeRepository) toModel(row sqlc.Theme) *models.Theme {
 	return &models.Theme{
 		ID:          row.ID,
+		Module:      row.Module,
 		Name:        row.Name,
 		Description: row.Description,
 		ImageURL:    row.ImageUrl,
@@ -133,4 +137,8 @@ func (r *ThemeRepository) toModels(rows []sqlc.Theme) []*models.Theme {
 		themes[i] = r.toModel(row)
 	}
 	return themes
+}
+
+func normalizeThemeModuleFilter(module string) string {
+	return strings.TrimSpace(strings.ToLower(module))
 }

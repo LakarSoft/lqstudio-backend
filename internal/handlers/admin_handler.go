@@ -48,11 +48,12 @@ func NewAdminHandler(
 // @Tags packages
 // @Accept json
 // @Produce json
+// @Param module query string false "Filter active packages by module"
 // @Success 200 {object} dto.ApiResponse{data=[]dto.PackageResponse}
 // @Failure 500 {object} dto.ApiResponse
 // @Router /api/packages [get]
 func (h *AdminHandler) GetActivePackages(c echo.Context) error {
-	packages, err := h.packageService.GetActive(c.Request().Context())
+	packages, err := h.packageService.GetActive(c.Request().Context(), c.QueryParam("module"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
 	}
@@ -66,11 +67,12 @@ func (h *AdminHandler) GetActivePackages(c echo.Context) error {
 // @Tags themes
 // @Accept json
 // @Produce json
+// @Param module query string false "Filter active themes by module"
 // @Success 200 {object} dto.ApiResponse{data=[]dto.ThemeResponse}
 // @Failure 500 {object} dto.ApiResponse
 // @Router /api/themes [get]
 func (h *AdminHandler) GetActiveThemes(c echo.Context) error {
-	themes, err := h.themeService.GetActive(c.Request().Context())
+	themes, err := h.themeService.GetActive(c.Request().Context(), c.QueryParam("module"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
 	}
@@ -84,11 +86,12 @@ func (h *AdminHandler) GetActiveThemes(c echo.Context) error {
 // @Tags addons
 // @Accept json
 // @Produce json
+// @Param module query string false "Filter active addons by module"
 // @Success 200 {object} dto.ApiResponse{data=[]dto.AddonResponse}
 // @Failure 500 {object} dto.ApiResponse
 // @Router /api/addons [get]
 func (h *AdminHandler) GetActiveAddons(c echo.Context) error {
-	addons, err := h.addonService.GetActive(c.Request().Context())
+	addons, err := h.addonService.GetActive(c.Request().Context(), c.QueryParam("module"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
 	}
@@ -108,12 +111,13 @@ func (h *AdminHandler) GetActiveAddons(c echo.Context) error {
 // @Produce json
 // @Security BearerAuth
 // @Param Authorization header string true "Bearer token"
+// @Param module query string false "Filter packages by module"
 // @Success 200 {object} dto.ApiResponse{data=[]dto.PackageResponse}
 // @Failure 401 {object} dto.ApiResponse
 // @Failure 500 {object} dto.ApiResponse
 // @Router /api/admin/packages [get]
 func (h *AdminHandler) GetAllPackages(c echo.Context) error {
-	packages, err := h.packageService.ListAll(c.Request().Context())
+	packages, err := h.packageService.ListAll(c.Request().Context(), c.QueryParam("module"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
 	}
@@ -357,12 +361,13 @@ func (h *AdminHandler) UploadPackageImage(c echo.Context) error {
 // @Produce json
 // @Security BearerAuth
 // @Param Authorization header string true "Bearer token"
+// @Param module query string false "Filter themes by module"
 // @Success 200 {object} dto.ApiResponse{data=[]dto.ThemeResponse}
 // @Failure 401 {object} dto.ApiResponse
 // @Failure 500 {object} dto.ApiResponse
 // @Router /api/admin/themes [get]
 func (h *AdminHandler) GetAllThemes(c echo.Context) error {
-	themes, err := h.themeService.ListAll(c.Request().Context())
+	themes, err := h.themeService.ListAll(c.Request().Context(), c.QueryParam("module"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
 	}
@@ -606,12 +611,13 @@ func (h *AdminHandler) UploadThemeImage(c echo.Context) error {
 // @Produce json
 // @Security BearerAuth
 // @Param Authorization header string true "Bearer token"
+// @Param module query string false "Filter addons by module"
 // @Success 200 {object} dto.ApiResponse{data=[]dto.AddonResponse}
 // @Failure 401 {object} dto.ApiResponse
 // @Failure 500 {object} dto.ApiResponse
 // @Router /api/admin/addons [get]
 func (h *AdminHandler) GetAllAddons(c echo.Context) error {
-	addons, err := h.addonService.ListAll(c.Request().Context())
+	addons, err := h.addonService.ListAll(c.Request().Context(), c.QueryParam("module"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
 	}
@@ -792,6 +798,7 @@ func (h *AdminHandler) ToggleAddonActive(c echo.Context) error {
 // @Security BearerAuth
 // @Param Authorization header string true "Bearer token"
 // @Param status query string false "Filter by status" Enums(PENDING, APPROVED, REJECTED, COMPLETED)
+// @Param module query string false "Filter by package module" Enums(raya, convocation)
 // @Param email query string false "Filter by customer email (partial match)"
 // @Param packageId query string false "Filter by package ID"
 // @Param themeId query string false "Filter by theme ID"
@@ -813,11 +820,23 @@ func (h *AdminHandler) ListBookings(c echo.Context) error {
 	if err := c.Bind(&filters); err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid query parameters")
 	}
+	if module := c.QueryParam("module"); module != "" {
+		filters.Module = normalizeBookingModuleFilter(module)
+	} else {
+		filters.Module = normalizeBookingModuleFilter(filters.Module)
+	}
 
 	if filters.Status != "" {
 		valid := map[string]bool{"PENDING": true, "APPROVED": true, "REJECTED": true, "COMPLETED": true}
 		if !valid[filters.Status] {
 			return echo.NewHTTPError(http.StatusBadRequest, "invalid status parameter. must be PENDING, APPROVED, REJECTED, or COMPLETED")
+		}
+	}
+
+	if filters.Module != "" {
+		valid := map[string]bool{"raya": true, "convocation": true}
+		if !valid[filters.Module] {
+			return echo.NewHTTPError(http.StatusBadRequest, "invalid module parameter. must be raya or convocation")
 		}
 	}
 
@@ -838,6 +857,10 @@ func (h *AdminHandler) ListBookings(c echo.Context) error {
 	}
 
 	return SendOK(c, result, "Bookings retrieved successfully")
+}
+
+func normalizeBookingModuleFilter(module string) string {
+	return strings.TrimSpace(strings.ToLower(module))
 }
 
 // GetBooking godoc

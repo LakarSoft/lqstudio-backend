@@ -10,6 +10,7 @@ import (
 // Matches the frontend Addon entity structure with camelCase JSON tags
 type AddonResponse struct {
 	ID          string  `json:"id"`
+	Module      string  `json:"module"`
 	Name        string  `json:"name"`
 	Description string  `json:"description,omitempty"`
 	Price       float64 `json:"price"`          // Price per unit in MYR
@@ -21,6 +22,7 @@ type AddonResponse struct {
 // Matches the frontend expectations with camelCase JSON tags
 type CreateAddonRequest struct {
 	ID          string  `json:"id" validate:"required,max=50"`
+	Module      string  `json:"module" validate:"required"`
 	Name        string  `json:"name" validate:"required"`
 	Description string  `json:"description"`
 	Price       float64 `json:"price" validate:"required,min=0"`
@@ -31,6 +33,7 @@ type CreateAddonRequest struct {
 // Matches the frontend expectations with camelCase JSON tags
 type UpdateAddonRequest struct {
 	ID          string  `json:"id" validate:"required,max=50"`
+	Module      string  `json:"module" validate:"required"`
 	Name        string  `json:"name" validate:"required"`
 	Description string  `json:"description"`
 	Price       float64 `json:"price" validate:"required,min=0"`
@@ -57,6 +60,7 @@ func ToAddonResponse(addon *models.AddOn) *AddonResponse {
 
 	return &AddonResponse{
 		ID:          addon.ID,
+		Module:      addon.Module,
 		Name:        addon.Name,
 		Description: addon.Description,
 		Price:       price,
@@ -83,6 +87,7 @@ func ToAddonsResponse(addons []*models.AddOn) []*AddonResponse {
 func (r *CreateAddonRequest) ToAddonModel() *models.AddOn {
 	return &models.AddOn{
 		ID:          r.ID,
+		Module:      r.Module,
 		Name:        r.Name,
 		Description: r.Description,
 		Price:       decimal.NewFromFloat(r.Price),
@@ -96,6 +101,7 @@ func (r *CreateAddonRequest) ToAddonModel() *models.AddOn {
 func (r *UpdateAddonRequest) ToAddonModel() *models.AddOn {
 	return &models.AddOn{
 		ID:          r.ID,
+		Module:      r.Module,
 		Name:        r.Name,
 		Description: r.Description,
 		Price:       decimal.NewFromFloat(r.Price),

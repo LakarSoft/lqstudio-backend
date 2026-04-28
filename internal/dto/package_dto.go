@@ -10,6 +10,7 @@ import (
 // Matches the frontend Package entity structure with camelCase JSON tags
 type PackageResponse struct {
 	ID              string   `json:"id"`
+	Module          string   `json:"module"`
 	Name            string   `json:"name"`
 	Description     string   `json:"description,omitempty"`
 	DurationMinutes int32    `json:"durationMinutes"`
@@ -26,6 +27,7 @@ type PackageResponse struct {
 // Matches the frontend expectations with camelCase JSON tags
 type CreatePackageRequest struct {
 	ID              string   `json:"id" validate:"required,max=50"`
+	Module          string   `json:"module" validate:"required"`
 	Name            string   `json:"name" validate:"required"`
 	Description     string   `json:"description"`
 	DurationMinutes int32    `json:"durationMinutes" validate:"required,min=15"`
@@ -39,6 +41,7 @@ type CreatePackageRequest struct {
 // Matches the frontend expectations with camelCase JSON tags
 type UpdatePackageRequest struct {
 	ID              string   `json:"id" validate:"required,max=50"`
+	Module          string   `json:"module" validate:"required"`
 	Name            string   `json:"name" validate:"required"`
 	Description     string   `json:"description"`
 	DurationMinutes int32    `json:"durationMinutes" validate:"required,min=15"`
@@ -63,6 +66,7 @@ func ToPackageResponse(pkg *models.Package) *PackageResponse {
 
 	return &PackageResponse{
 		ID:              pkg.ID,
+		Module:          pkg.Module,
 		Name:            pkg.Name,
 		Description:     pkg.Description,
 		DurationMinutes: pkg.DurationMinutes,
@@ -94,6 +98,7 @@ func ToPackagesResponse(packages []*models.Package) []*PackageResponse {
 func (r *CreatePackageRequest) ToPackageModel() *models.Package {
 	return &models.Package{
 		ID:              r.ID,
+		Module:          r.Module,
 		Name:            r.Name,
 		Description:     r.Description,
 		DurationMinutes: r.DurationMinutes,
@@ -110,6 +115,7 @@ func (r *CreatePackageRequest) ToPackageModel() *models.Package {
 func (r *UpdatePackageRequest) ToPackageModel() *models.Package {
 	return &models.Package{
 		ID:              r.ID,
+		Module:          r.Module,
 		Name:            r.Name,
 		Description:     r.Description,
 		DurationMinutes: r.DurationMinutes,
